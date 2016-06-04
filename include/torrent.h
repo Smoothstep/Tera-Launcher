@@ -10,7 +10,7 @@ using namespace libtorrent;
 struct SFile
 {
 	SFile(std::string Name, uint64_t Size) : name(Name), size(Size) {};
-	SFile() {};
+	SFile() : size(0) {};
 
 	uint64_t size;
 	std::string name;
@@ -124,9 +124,9 @@ public:
 		return extract_files(files, m_Files, "", 0, m_ErrorCode);
 	}
 
-private: // (c) LIBTORRENT
-	bool extract_files(bdecode_node const& list, CFileStorage& target
-		, std::string const& root_dir, ptrdiff_t info_ptr_diff, error_code& ec)
+private:
+	bool extract_files(bdecode_node const& list, CFileStorage& target, 
+		std::string const& root_dir, ptrdiff_t info_ptr_diff, error_code& ec)
 	{
 		if (list.type() != bdecode_node::list_t)
 		{
@@ -137,9 +137,10 @@ private: // (c) LIBTORRENT
 
 		for (int i = 0, end(list.list_size()); i < end; ++i)
 		{
-			if (!extract_single_file(list.list_at(i), target, root_dir
-				, info_ptr_diff, false, ec))
+			if (!extract_single_file(list.list_at(i), target, root_dir, info_ptr_diff, false, ec))
+			{
 				return false;
+			}
 		}
 
 		return true;
@@ -168,7 +169,12 @@ private: // (c) LIBTORRENT
 		if (top_level)
 		{
 			bdecode_node p = dict.dict_find_string("name.utf-8");
-			if (!p) p = dict.dict_find_string("name");
+
+			if (!p)
+			{
+				p = dict.dict_find_string("name");
+			}
+
 			if (!p || p.string_length() == 0)
 			{
 				return false;
@@ -180,27 +186,37 @@ private: // (c) LIBTORRENT
 		else
 		{
 			bdecode_node p = dict.dict_find_list("path.utf-8");
-			if (!p) p = dict.dict_find_list("path");
+
+			if (!p)
+			{
+				p = dict.dict_find_list("path");
+			}
+
 			if (!p || p.list_size() == 0)
 			{
 				return false;
 			}
 
 			int preallocate = int(path.size());
+
 			for (int i = 0, end(p.list_size()); i < end; ++i)
 			{
 				bdecode_node e = p.list_at(i);
+
 				if (e.type() != bdecode_node::string_t)
 				{
 					return false;
 				}
+
 				preallocate += e.string_length() + 1;
 			}
+
 			path.reserve(preallocate);
 
 			for (int i = 0, end(p.list_size()); i < end; ++i)
 			{
 				bdecode_node e = p.list_at(i);
+
 				if (i == end - 1)
 				{
 					filename = e.string_ptr() + info_ptr_diff;

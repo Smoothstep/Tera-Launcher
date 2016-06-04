@@ -9,15 +9,31 @@
 class CXMLNode : public std::vector<CXMLNode*>
 {
 private:
-	char* m_pValue	= NULL;
-	char* m_pName	= NULL;
+	char* m_pValue;
+	char* m_pName;
 
-	CXMLNode* m_pParentNode = NULL;
+	CXMLNode* m_pParentNode;
 
 public:
-	CXMLNode(char* name)
+	CXMLNode() :
+		m_pParentNode(NULL),
+		m_pValue(NULL),
+		m_pName(NULL)
 	{
-		m_pName = name;
+	}
+
+	CXMLNode(char* name) :
+		m_pParentNode(NULL),
+		m_pValue(NULL),
+		m_pName(name)
+	{
+	}
+
+	CXMLNode(char* name, char* value) :
+		m_pParentNode(NULL),
+		m_pValue(value),
+		m_pName(name)
+	{
 	}
 
 	~CXMLNode()
@@ -98,7 +114,7 @@ public:
 class CXMLDocument
 {
 private:
-	CXMLNode* m_pMainNode = NULL;
+	CXMLNode* m_pMainNode;
 
 public:
 	inline CXMLNode* Node()
@@ -107,6 +123,11 @@ public:
 	}
 
 public:
+	CXMLDocument() :
+		m_pMainNode(NULL)
+	{
+	}
+
 	~CXMLDocument()
 	{
 		if (m_pMainNode)
@@ -115,20 +136,31 @@ public:
 		}
 	}
 
-	bool ReadXML(const char* pData, size_t iSize)
+	bool ReadXML(std::istream& stream)
+	{
+		ReadXML(static_cast<std::stringstream&>(std::stringstream() << stream.rdbuf()).str().c_str());
+	}
+
+	bool ReadXML(const char* pData, size_t iSize = 0)
 	{
 		if (!pData)
 		{
 			return false;
 		}
 
+		if (!iSize)
+		{
+			iSize = strlen(pData);
+		}
+
 		char* pCurrent = MEMCHR(pData, '\n', iSize) + 1;
+		char* pEnd = (char*)pData + iSize;
+
 		if (!pCurrent)
 		{
 			return false;
 		}
 
-		char* pEnd = (char*)pData + iSize;
 		CXMLNode* pParentNode = NULL;
 
 		while (pCurrent)

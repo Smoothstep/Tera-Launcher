@@ -56,6 +56,10 @@ static __forceinline C Cast(T& value)
 }
 
 CPatcher::CPatcher(Callback::CPatchCallback& callback) :
+	m_iMyVersion(-1),
+	m_CurrentBufferOffset(0),
+	m_DownloadBuffer(NULL),
+	m_DownloadBufferSize(0),
 	m_Callback(callback),
 	m_HTTPSocket(m_HTTPService),
 	m_bStop(false)
@@ -328,7 +332,7 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 
 	if (error)
 	{
-		alert(m_Callback,"Error: Could not connect to gameforge download server." << endl);
+		alert(m_Callback,"Error: Failed to connect to HTTP download server: " << m_strDownloadHost << endl);
 		return 0;
 	}
 
@@ -356,7 +360,7 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 			return 0;
 		}
 
-		alert(m_Callback,"Error: Could not send request." << endl);
+		alert(m_Callback,"Error: Sending HTTP request failed." << endl);
 		return 0;
 	}
 
@@ -443,7 +447,8 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 
 	while(!error)
 	{
-		m_CurrentBufferOffset += boost::asio::read(m_HTTPSocket, boost::asio::buffer(m_DownloadBuffer, m_DownloadBufferSize - m_CurrentBufferOffset), error);
+		m_CurrentBufferOffset += boost::asio::read(m_HTTPSocket, 
+			boost::asio::buffer(m_DownloadBuffer, m_DownloadBufferSize - m_CurrentBufferOffset), error);
 
 		if (m_CurrentBufferOffset == m_DownloadBufferSize)
 		{
@@ -481,7 +486,7 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 	{
 		assert(fileSize < (size - currentSize));
 
-		alert(m_Callback,"Warning: Could not download file completely - Retrying in 1 minute." << endl);
+		alert(m_Callback,"Warning: File not completely downloaded - Retrying in 1 minute." << endl);
 
 		ofTmpFile.close();
 		ofTmpInfoFile.close();
@@ -589,6 +594,46 @@ bool CPatcher::MTUnpackArchiveFiles(boost::iterator_range<std::vector<CArchiveFi
 	return true;
 }
 
+int CPatcher::UnpackArchiveFiles(std::vector<CArchiveFile*>& files)
+{
+	int32_t iError = kSuccess;
+
+	for (TArchiveFiles::iterator it = files.begin(); it != files.end() && !m_bStop; ++it)
+	{
+		CArchiveFile* pArchiveFile = *it;
+
+		while ((iError = pArchiveFile->WriteDecompressed(m_strClientPath)) == kInsufficientMemory)
+		{
+			if (m_bStop)
+			{
+				return kSuccess;
+			}
+		}
+
+		if (iError == kDeltaDecodeError)
+		{
+			if (m_FileInfo.CheckSizeValid(pArchiveFile->GetFilePath(), pArchiveFile->GetRelativePath()))
+			{
+				iError = kSuccess;
+			}
+		}
+
+		pArchiveFile->ClearAll();
+
+		if (iError != kSuccess && iError != kInsufficientMemory)
+		{
+			alert(m_Callback, "Error: " << ErrorMessage(iError) << " File: " << pArchiveFile->GetRelativePath());
+			return iError;
+		}
+
+		pArchiveFile->SetUnpacked(true);
+
+		m_Callback.EnqueAlert(new TAFilePatch(pArchiveFile->GetFilePath(), "Completed", pArchiveFile->GetTrueSize()));
+	}
+
+	return kSuccess;
+}
+
 inline int CPatcher::Patch(std::vector<CArchiveFile*>& files, CArchiveFile ** m_ppPatchFile)
 {
 	boost::atomic_int32_t iResult(kSuccess);
@@ -616,10 +661,7 @@ inline int CPatcher::Patch(std::vector<CArchiveFile*>& files, CArchiveFile ** m_
 	}
 	else
 	{
-		for (TArchiveFiles::iterator it = files.begin(); it != files.end(); ++it)
-		{
-			MTUnpackSingleArchiveFile(*it, boost::ref(iResult));
-		}
+		return UnpackArchiveFiles(files);
 	}
 	
 	return iResult;
@@ -713,7 +755,7 @@ bool CPatcher::UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffset
 				return true;
 			}
 
-			alert(m_Callback,"Error: Could not find any files in archive: " << file << endl);
+			alert(m_Callback,"Error: No files in archive: " << file << endl);
 			return false;
 		}
 
@@ -818,7 +860,7 @@ bool CPatcher::UpdateToLatest()
 	{
 		m_Callback.EnqueAlert(new TAPatchFinish);
 
-		fatal(m_Callback,"Info: Your version is up to date: " << m_iMyVersion << endl);
+		fatal(m_Callback,"Info: Version is up to date: " << m_iMyVersion << endl);
 		return true;
 	}
 
@@ -1002,7 +1044,7 @@ bool CPatcher::UpdateToLatest()
 
 			if (!error)
 			{
-				boost::filesystem::rename(m_strClientPath + "version.ini.version", "version.ini", error);
+				boost::filesystem::rename(m_strClientPath + "\\version.ini.version", m_strClientPath + "\\version.ini", error);
 			}
 		}
 
@@ -1084,7 +1126,8 @@ bool CPatcher::HTTPDownloadManifest(std::string link)
 			return false;
 		}
 
-		if (!m_Manifest.LoadManifestFile((char*)archive.GetArchiveFiles()[0]->GetDecompressedData().data(), archive.GetArchiveFiles()[0]->GetDecompressedData().size()))
+		if (!m_Manifest.LoadManifestFile(P(archive.GetArchiveFiles()[0]->GetDecompressedData().data()), 
+			archive.GetArchiveFiles()[0]->GetDecompressedData().size()))
 		{
 			alert(m_Callback,"Could not parse manifest file." << endl);
 			return false;

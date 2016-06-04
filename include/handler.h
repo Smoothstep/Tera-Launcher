@@ -95,10 +95,7 @@ private:
 	IMPLEMENT_REFCOUNTING(CCefHandler);
 
 	CefRefPtr<CefBrowser> m_Browser;
-	CefRefPtr<CefCookieManager> m_CoookieManager = CefCookieManager::CreateManager("C:\\cookies", true, NULL);
-
-public:
-	std::vector<CefCookie> m_vCookies;
+	CefRefPtr<CefCookieManager> m_CoookieManager;
 };
 
 #define CEF CCefHandler::GetInstance()

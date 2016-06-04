@@ -78,6 +78,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 target_link_libraries(tera-launcher ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 file(COPY config/ DESTINATION config)
+file(COPY bin/ DESTINATION config/bin)
 
 target_link_libraries(tera-launcher zlib.lib)
 target_link_libraries(tera-launcher xz.lib)

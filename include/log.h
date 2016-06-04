@@ -5,6 +5,8 @@
 
 #include <time.h>
 
+#define LOG_FILE stderr
+
 #define LOG_TIME(fp)								\
 {													\
 	time_t ct = time(0);							\
@@ -24,12 +26,12 @@
 #define TRACEN(...)						\
 LOG_TIME(stderr);						\
 {										\
-	fprintf(stderr, __VA_ARGS__);		\
-	fprintf(stderr, "\n");				\
+	fprintf(LOG_FILE, __VA_ARGS__);		\
+	fprintf(LOG_FILE, "\n");				\
 }										\
 
 #define TRACE(...)						\
-fprintf(stderr, __VA_ARGS__);			\
+fprintf(LOG_FILE, __VA_ARGS__);			\
 
 
 #endif

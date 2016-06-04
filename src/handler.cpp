@@ -250,6 +250,8 @@ void CCefHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser)
 {
 	m_Browser = browser;
 	m_Browser->SendProcessMessage(PID_RENDERER, CefProcessMessage::Create("Browser"));
+
+	CefCookieManager::CreateManager("C:\\cookies", true, NULL);
 }
 
 void CCefHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser)

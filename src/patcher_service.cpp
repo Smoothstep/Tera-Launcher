@@ -35,12 +35,14 @@ CPatchService::~CPatchService()
 }
 
 CPatchService::CPatchService() :
-	m_Strand(m_Service)
+	m_Strand(m_Service),
+	m_WorkCount(0)
 {
 }
 
 CPatchService::CPatchService(size_t iCount) :
-	m_Strand(m_Service)
+	m_Strand(m_Service),
+	m_WorkCount(0)
 {
 	SetupPatchThreads(iCount);
 }

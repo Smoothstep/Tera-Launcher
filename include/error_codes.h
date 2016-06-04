@@ -3,30 +3,30 @@
 
 enum EGlobalError
 {
-	kDeltaDecodeError = -100,
-	kNotDecompressed,
-	kInvalidFile,
-	kFilePart,
-	kUnableToCreateDir,
-	kInsufficientMemory,
-	kEmptyFile,
-	kWriteError = -3,
-	kReadError = -2,
-	kEndOfFile = -1,
-	kSuccess = 1
+	kDeltaDecodeError	= -10,
+	kNotDecompressed	= -9,
+	kInvalidFile		= -8,
+	kFilePart			= -7,
+	kUnableToCreateDir	= -6,
+	kInsufficientMemory = -5,
+	kEmptyFile			= -4,
+	kWriteError			= -3,
+	kReadError			= -2,
+	kEndOfFile			= -1,
+	kSuccess			= 1
 };
 
 enum EDecodeError
 {
-	kInvalidSource = -300,
-	kInvalidDeltaFile,
-	kSourceError
+	kInvalidSource		= -102,
+	kInvalidDeltaFile	= -101,
+	kSourceError		= -100
 };
 
 enum EDecompressError
 {
-	kDeflateError = -200,
-	kInflateError
+	kDeflateError = -201,
+	kInflateError = -200
 };
 
 static const char * ErrorMessage(int iErrorCode)

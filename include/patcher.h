@@ -23,20 +23,20 @@ class CArchiveDirectoryFile;
 class CPatcher
 {
 private:
-	int32_t m_iMyVersion = -1;
+	int32_t m_iMyVersion;
 
-	std::string m_strVersion	= "";
-	std::string m_strGamePath	= "";
-	std::string m_strClientPath = "";
-	std::string m_strTempPath	= "";
+	std::string m_strVersion;
+	std::string m_strGamePath;
+	std::string m_strClientPath;
+	std::string m_strTempPath;
 
-	std::string m_strDownloadHost		= "";
-	std::string m_strDownloadClient		= "";
-	std::string m_strDownloadManifest	= "";
+	std::string m_strDownloadHost;
+	std::string m_strDownloadClient;
+	std::string m_strDownloadManifest;
 
-	uint8_t*	m_DownloadBuffer		= 0;
-	uint32_t	m_DownloadBufferSize	= 0;
-	uint32_t	m_CurrentBufferOffset	= 0;
+	uint8_t*	m_DownloadBuffer;
+	uint32_t	m_DownloadBufferSize;
+	uint32_t	m_CurrentBufferOffset;
 
 	CManifest m_Manifest;
 	CFileInfo m_FileInfo;
@@ -66,6 +66,8 @@ public:
 	void MakeLog();
 
 	bool UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffsets, CArchive& archive, CArchiveFile* pFilePart);
+
+	int UnpackArchiveFiles(std::vector<CArchiveFile*>& files);
 
 	bool MTUnpackSingleArchiveFile(CArchiveFile* pArchive, boost::atomic_int32_t& result);
 	bool MTUnpackArchiveFiles(boost::iterator_range<std::vector<CArchiveFile*>::iterator> archive, boost::atomic_int32_t& result);
@@ -102,7 +104,5 @@ private:
 
 extern CPatcher * GetPatcher();
 extern CPatcher * CreatePatcher(Callback::CPatchCallback& callback);
-
-extern void TryDecode(const char*szFile, const char*szDiff, const char*szTemp);
 
 #endif

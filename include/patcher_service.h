@@ -33,7 +33,9 @@ public:
 	CPatchService(size_t iCount);
 
 	void ShutdownAll();
+
 	void JoinAll();
+
 	void InterruptAll();
 	void InterruptService();
 

@@ -159,7 +159,9 @@ static int __fastcall GetPassword(char* szCrypted)
 #define ARCHIVE_FILE_HEADER(x)				*(SArchiveFileHeader*)(x)
 #define ARCHIVE_DIRECTORY_FILE_HEADER(x)	*(SArchiveDirectoryFileHeader*)(x)
 
-constexpr size_t BUFFER_SIZE = 65536;
+#define MAX_PW_LENGTH 120
+
+#define BUFFER_SIZE 65536
 
 #define ALLOC(x)	Allocate(x)
 #define FREE(x)		Deallocate(NULL, x)
@@ -184,10 +186,10 @@ enum EFlags
 class CArchiveDirectoryFile
 {
 private:
-	SArchiveDirectoryFileHeader m_Header = { 0 };
+	SArchiveDirectoryFileHeader m_Header;
 
 protected:
-	uint8_t m_Password[120] = { 0 };
+	uint8_t m_Password[MAX_PW_LENGTH];
 
 public:
 	CArchiveDirectoryFile(uint8_t* data)
@@ -197,6 +199,9 @@ public:
 
 	CArchiveDirectoryFile()
 	{
+		memset(&m_Header, 0, sizeof(SArchiveDirectoryFileHeader));
+		memset(m_Password, 0, MAX_PW_LENGTH);
+
 		m_Header.signature = ZIP_COMPRESSED_DIRECTORY_FILE_SIGNATURE;
 	}
 
@@ -278,7 +283,7 @@ typedef MEMVector<uint8_t> data_container_t;
 class CArchiveFile
 {
 private:
-	SArchiveFileHeader m_Header = { 0 };
+	SArchiveFileHeader m_Header;
 
 	data_container_t m_vCompressedData;
 	data_container_t m_vDecompressedData;
@@ -300,6 +305,7 @@ public:
 		m_CurrentSize(0),
 		m_FileArchiveOffset(fileArchiveOffset)
 	{
+		memset(&m_Header, 0, sizeof(SArchiveFileHeader));
 		m_Header.signature = ZIP_COMPRESSED_FILE_SIGNATURE;
 	}
 
@@ -309,6 +315,7 @@ public:
 		m_CurrentSize(0),
 		m_FileArchiveOffset(fileArchiveOffset)
 	{
+		memset(&m_Header, 0, sizeof(SArchiveFileHeader));
 		m_Header = ARCHIVE_FILE_HEADER(data);
 		{
 			Resize();

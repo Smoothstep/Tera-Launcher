@@ -5,6 +5,8 @@
 #include <include\cef_browser.h>
 #include <include\cef_client.h>
 
+#include <boost\filesystem.hpp>
+
 #include "Handler.h"
 
 class CCefV8Handler : public CefV8Handler
@@ -104,6 +106,14 @@ static int CefInit(HINSTANCE hInstance, CefRefPtr<CCefApp> pHandler)
 	settings.multi_threaded_message_loop = true;
 #if !defined(CEF_USE_SANDBOX)
 	settings.no_sandbox = true;
+
+	std::string szDir = boost::filesystem::current_path().generic_string();
+
+	CefString(&settings.cache_path)				= std::string(szDir) + "/config/cookies";
+	CefString(&settings.resources_dir_path)		= std::string(szDir) + "/config/bin";
+	CefString(&settings.user_data_path)			= std::string(szDir) + "/config/bin";
+	CefString(&settings.locales_dir_path)		= std::string(szDir) + "/config/bin/locales";
+
 #endif
 
 	if (!CefInitialize(main_args, settings, pHandler.get(), sandbox_info))
@@ -114,6 +124,6 @@ static int CefInit(HINSTANCE hInstance, CefRefPtr<CCefApp> pHandler)
 	return 1;
 }
 
-extern void CefRun(HWND hWnd);
+extern void CefRun();
 
 #endif

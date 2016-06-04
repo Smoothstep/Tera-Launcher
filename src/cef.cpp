@@ -225,7 +225,7 @@ bool CCefV8Handler::Execute(const CefString& name,
 	return false;
 }
 
-void CefRun(HWND hWnd)
+void CefRun()
 {
 	CefRunMessageLoop();
 	DoCefShutdown();

@@ -5,8 +5,13 @@
 
 #include <Windows.h>
 
+#ifndef DWORD
 typedef unsigned long DWORD;
+#endif
+
+#ifndef QWORD
 typedef unsigned long long QWORD;
+#endif
 
 class CMappedFile
 {
@@ -19,7 +24,7 @@ private:
 	QWORD m_qwCurrentOffset;
 
 public:
-	CMappedFile() : m_hFile(NULL), m_hMap(NULL), m_qwCurrentOffset(0)
+	CMappedFile() : m_hFile(NULL), m_hMap(NULL), m_qwCurrentOffset(0), m_qwFileSize(0)
 	{
 		SYSTEM_INFO sysInfo;
 		{
@@ -135,6 +140,27 @@ public:
 		}
 
 		return MapViewOfFile(m_hMap, FILE_MAP_READ, dwHigh, dwLow, read = dwChun);
+	}
+
+	inline LPVOID ReadAt(QWORD offset, size_t count)
+	{
+		DWORD dwHigh = static_cast<DWORD>((offset >> 32) & 0xFFFFFFFFul);
+		DWORD dwLow = static_cast<DWORD>((offset)& 0xFFFFFFFFul);
+
+		QWORD qwView = offset + count * m_dwAllocationGranularity;
+		DWORD dwChun = count * m_dwAllocationGranularity;
+
+		if (qwView > m_qwFileSize)
+		{
+			if (offset >= m_qwFileSize)
+			{
+				return NULL;
+			}
+
+			dwChun = static_cast<DWORD>(m_qwFileSize - offset);
+		}
+
+		return MapViewOfFile(m_hMap, FILE_MAP_READ, dwHigh, dwLow, dwChun);
 	}
 
 	inline bool Unmap(LPVOID lpData)
