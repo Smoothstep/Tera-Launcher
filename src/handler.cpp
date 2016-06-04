@@ -593,7 +593,7 @@ bool Logout()
 		return false;
 	}
 
-	frame->ExecuteJavaScript("LoginOut();", frame->GetURL(), 0);
+	frame->ExecuteJavaScript("Logout();", frame->GetURL(), 0);
 
 	return true;
 }
