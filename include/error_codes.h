@@ -67,7 +67,7 @@ static const char * ErrorMessage(int iErrorCode)
 		return "Could not read data from file";
 
 	case kEndOfFile:
-		return "Reaced end of file";
+		return "Reached end of file";
 
 	case kInsufficientMemory:
 		return "Not enough memory";
