@@ -1,0 +1,64 @@
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+  -webkit-font-smoothing: antialiased;
+}
+body{
+  font-family: "proxima-nova";
+  background: #001F3F;
+}
+form{
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin: 4rem auto 0;
+  max-width: 26rem;
+}
+.input-field{
+  padding: 0 .5em 2em;
+}
+.input-field.half{
+  flex: 1 0 50%;
+}
+.input-field.full{
+  flex: 2 0 100%;
+}
+label{
+  display: block;
+  position: relative;
+  z-index: -9;
+  top: 1.5rem;
+  color: rgba(255,255,255,.4);
+  font-size: .875rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 2px;
+  transition: top .3s ease, color .3s ease;
+}
+label.raised{
+  top: 0rem;
+}
+label.highlight{
+  color: rgba(255,255,255,.6);
+}
+
+[type="text"],
+[type="email"]{
+  color: rgba(255,255,255,.4);
+  font-family: "proxima-nova";
+  padding: .25rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 400;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid;
+  background: none;
+  transition: color .3s ease;
+}
+[type="text"]:focus,
+[type="email"]:focus{
+  color: rgba(255,255,255,1);
+  outline: 0;
+}

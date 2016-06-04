@@ -1,0 +1,101 @@
+@import url(http://fonts.googleapis.com/css?family=Lato);
+a {
+
+
+  text-align: center;
+
+}
+
+body {
+  background: -webkit-linear-gradient(0deg, #d9d9d9, #ebebeb);
+  background: linear-gradient(90deg, #d9d9d9, #ebebeb);
+
+}
+
+#demo {
+  width: 100px;
+  height: 102px;
+  border-radius: 100%;
+  position: absolute;
+  top: 45%;
+  left: calc(50% - 50px);
+  visibility: hidden;
+}
+
+.circle {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+}
+.circle .inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 100%;
+  border: 5px solid rgba(255, 255, 255, 0.7);
+  border-right: none;
+  border-top: none;
+  backgroudn-clip: padding;
+  box-shadow: inset 0px 0px 10px rgba(255, 255, 255, 0.15);
+}
+
+@-webkit-keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+            transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+
+@keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+            transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+.circle:nth-of-type(0) {
+  -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
+}
+.circle:nth-of-type(0) .inner {
+  -webkit-animation: spin 2s infinite linear;
+          animation: spin 2s infinite linear;
+}
+
+.circle:nth-of-type(1) {
+  -webkit-transform: rotate(70deg);
+          transform: rotate(70deg);
+}
+.circle:nth-of-type(1) .inner {
+  -webkit-animation: spin 2s infinite linear;
+          animation: spin 2s infinite linear;
+}
+
+.circle:nth-of-type(2) {
+  -webkit-transform: rotate(140deg);
+          transform: rotate(140deg);
+}
+.circle:nth-of-type(2) .inner {
+  -webkit-animation: spin 2s infinite linear;
+          animation: spin 2s infinite linear;
+}
+
+.circle:nth-of-type(3) {
+  -webkit-transform: rotate(210deg);
+          transform: rotate(210deg);
+}
+.circle:nth-of-type(3) .inner {
+  -webkit-animation: spin 2s infinite linear;
+          animation: spin 2s infinite linear;
+}
+
+.demo {
+  -webkit-animation: spin 5s infinite linear;
+          animation: spin 5s infinite linear;
+}
