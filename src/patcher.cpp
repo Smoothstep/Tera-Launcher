@@ -1247,20 +1247,6 @@ bool CPatcher::ReadConfiguration()
 				return false;
 			}
 		}
-		else if (boost::starts_with(line, "download_client_url"))
-		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_strDownloadClient = line.substr(iPos + 1);
-			}
-			else
-			{
-				alert(m_Callback, "Error: Invalid download client url" << endl);
-				return false;
-			}
-		}
 		else if (boost::starts_with(line, "temp_file_path"))
 		{
 			size_t iPos = line.find_last_of("=");
