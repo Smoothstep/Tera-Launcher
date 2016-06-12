@@ -1,4 +1,3 @@
-
 #include "patcher.h"
 
 #include <sstream>
@@ -21,6 +20,7 @@
 #include "Launcher.h"
 #include "tera_zip_format.h"
 #include "torrent.h"
+#include "log.h"
 
 #define endl ""
 #define P(x) (char*)(x)
@@ -72,7 +72,7 @@ CPatcher::~CPatcher()
 
 	if (m_DownloadBuffer)
 	{
-		delete[] m_DownloadBuffer;
+		free(m_DownloadBuffer);
 		m_DownloadBuffer = NULL;
 	}
 }
@@ -1037,24 +1037,25 @@ bool CPatcher::UpdateToLatest()
 
 		boost::system::error_code error;
 
-		// hack
 		if (boost::filesystem::exists(m_strClientPath + "\\version.ini.version", error) && !error)
 		{
-			boost::filesystem::remove(m_strClientPath + "\\version.ini", error);
+			boost::filesystem::copy_file(
+				m_strClientPath + "\\version.ini.version", 
+				m_strClientPath + "\\version.ini", 
+				boost::filesystem::copy_option::overwrite_if_exists, error);
 
-			if (!error)
+			if (error)
 			{
-				boost::filesystem::rename(m_strClientPath + "\\version.ini.version", m_strClientPath + "\\version.ini", error);
+				alert(m_Callback, "Error: Unable to find and copy: version.ini & version.ini.version");
+				return false;
 			}
-		}
 
-		if (error)
-		{
-			alert(m_Callback, "Error: Unable to find and rename: version.ini & version.ini.version");
-			return false;
+			boost::filesystem::remove(m_strClientPath + "\\version.ini.version", error);
 		}
 
 		m_iMyVersion = *it;
+
+		m_Callback.ClearStaticAlerts();
 	}
 
 	m_Callback.EnqueAlert(new TAPatchFinish);
@@ -1064,8 +1065,8 @@ bool CPatcher::UpdateToLatest()
 
 void CPatcher::AsyncUpdateToLatest()
 {
-	m_bStop = false;
 	m_PatchThread = boost::thread(boost::bind(&CPatcher::UpdateToLatest, this));
+	m_bStop = false;
 }
 
 void CPatcher::Stop()
@@ -1100,7 +1101,9 @@ void CPatcher::MakeLog()
 	for (Callback::TAlertsCopy::iterator it = alerts.begin(); it != alerts.end(); ++it)
 	{
 		Callback::CAlert *alert = *it;
-		std::cerr << alert->Message();
+		{
+			TRACEN(alert->Message().c_str());
+		}
 	}
 }
 
@@ -1298,7 +1301,7 @@ bool CPatcher::ReadConfiguration()
 
 			if (GetAllocationLimit() < GIGABYTE)
 			{
-				alert(m_Callback, "Error: Allocation limit may not less than 1 Gb" << endl);
+				alert(m_Callback, "Error: Allocation limit must not be less than 1 Gb" << endl);
 				return false;
 			}
 		}
@@ -1354,7 +1357,7 @@ bool CPatcher::ReadConfiguration()
 		return false;
 	}
 
-	m_DownloadBuffer = (uint8_t*)malloc(m_DownloadBufferSize);
+	m_DownloadBuffer = reinterpret_cast<uint8_t*>(malloc(m_DownloadBufferSize));
 
 	if (!m_DownloadBuffer)
 	{

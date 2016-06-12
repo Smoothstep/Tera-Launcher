@@ -166,7 +166,7 @@ public:
 	~CLauncher();
 
 	bool Patch();
-	bool RetrivePatchStatus();
+	bool RetrievePatchStatus();
 
 	bool PausePatch();
 	bool ResumePatch();

@@ -22,6 +22,8 @@ extern "C"
 #include "crypt.h"
 }
 
+#include <ktmw32.h>
+
 #include "error_codes.h"
 #include "allocation.h"
 #include "mapped_file.h"
@@ -807,21 +809,7 @@ public:
 				return iError;
 			}
 
-			if (GetRelativePath() != std::string("version.ini"))
-			{
-				if (!boost::filesystem::remove(m_strFilePath, error))
-				{
-					return kInvalidFile;
-				}
-
-				boost::filesystem::rename(m_strTempPath, m_strFilePath, error);
-			}
-			else
-			{
-				boost::filesystem::rename(m_strTempPath, m_strFilePath + ".version", error);
-			}
-
-			if (error)
+			if (!ReplaceFiles())
 			{
 				return kInvalidFile;
 			}
@@ -843,6 +831,57 @@ public:
 		}
 
 		return kSuccess;
+	}
+
+	bool ReplaceFiles()
+	{
+		if (GetRelativePath() != std::string("version.ini"))
+		{
+#ifdef BOOST_REPLACE_FILE
+			boost::system::error_code error;
+
+			boost::filesystem::copy_file(m_strTempPath, m_strFilePath,
+				boost::filesystem::copy_option::overwrite_if_exists, error);
+
+			if (error)
+			{
+				boost::filesystem::remove(m_strTempPath, error);
+				return false;
+			}
+
+			boost::filesystem::remove(m_strTempPath, error);
+#else
+			HANDLE hTransaction = CreateTransaction(NULL, 0, 0, 0, 0, INFINITE, 0);
+
+			if (!hTransaction)
+			{
+				return false;
+			}
+
+			if (!MoveFileTransactedA(m_strTempPath.c_str(), m_strFilePath.c_str(),
+				0, 0, MOVEFILE_REPLACE_EXISTING, hTransaction))
+			{
+				RollbackTransaction(hTransaction);
+				CloseHandle(hTransaction);
+
+				return false;
+			}
+
+			return CommitTransaction(hTransaction);
+#endif
+		}
+		else
+		{
+			boost::system::error_code error;
+			boost::filesystem::rename(m_strTempPath, m_strFilePath + ".version", error);
+
+			if (error)
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 };
 
@@ -893,7 +932,7 @@ public:
 		return m_PartFile;
 	}
 
-	inline void AddFile(CArchiveFile* pFile)
+	void AddFile(CArchiveFile* pFile)
 	{
 		if (!pFile)
 		{
@@ -906,7 +945,7 @@ public:
 		}
 	}
 
-	inline void AddDirectoryFile(CArchiveDirectoryFile* pDirectoryFile)
+	void AddDirectoryFile(CArchiveDirectoryFile* pDirectoryFile)
 	{
 		if (!pDirectoryFile)
 		{
@@ -921,7 +960,7 @@ public:
 
 	CArchiveFile* GetArchiveFileByName(std::string strName, bool bReversed = false)
 	{
-		if (!false)
+		if (!bReversed)
 		{
 			for (auto it = m_ArchiveFiles.begin(); it != m_ArchiveFiles.end(); ++it)
 			{
@@ -951,7 +990,7 @@ public:
 
 	CArchiveDirectoryFile* GetArchiveDirectoryFileByName(std::string strName, bool bReversed = false)
 	{
-		if (!false)
+		if (!bReversed)
 		{
 			for (auto it = m_ArchiveDirectoryFiles.begin(); it != m_ArchiveDirectoryFiles.end(); ++it)
 			{
@@ -979,12 +1018,12 @@ public:
 		return NULL;
 	}
 
-	TArchiveFiles& GetArchiveFiles()
+	inline TArchiveFiles& GetArchiveFiles()
 	{
 		return m_ArchiveFiles;
 	}
 
-	TArchiveDirectoryFiles& GetArchiveDirectoryFiles()
+	inline TArchiveDirectoryFiles& GetArchiveDirectoryFiles()
 	{
 		return m_ArchiveDirectoryFiles;
 	}

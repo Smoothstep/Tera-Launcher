@@ -1,5 +1,5 @@
 #include "patcher_service.h"
-
+#ifdef BOOST_PATCH_SERVICE
 void CPatchService::RunSingle()
 {
 	boost::system::error_code error;
@@ -22,7 +22,9 @@ void CPatchService::RunSingle()
 
 		if (m_WorkCount-- == 1)
 		{
+			m_WorkMutex.lock();
 			m_WorkCondition.notify_all();
+			m_WorkMutex.unlock();
 		}
 	}
 
@@ -110,3 +112,4 @@ void CPatchService::SetupPatchThreads(size_t iCount)
 		m_Threads.push_back(pThread);
 	}
 }
+#endif

@@ -7,7 +7,7 @@
 
 #include "launcher.h"
 
-inline std::string& TransformPath(std::string& string)
+std::string& TransformPath(std::string& string)
 {
 	size_t size = string.size();
 	size_t add = 0;
@@ -23,48 +23,64 @@ inline std::string& TransformPath(std::string& string)
 	return string;
 }
 
-class CCefURLRequestClient : public CefURLRequestClient
+std::wstring GetCookies(cookie_container_t& vCookies)
 {
-private:
-	IMPLEMENT_REFCOUNTING(CCefURLRequestClient);
+	std::wstring cookies;
 
-public:
-	virtual void OnRequestComplete(CefRefPtr<CefURLRequest> request) OVERRIDE {}
-
-	virtual void OnUploadProgress(CefRefPtr<CefURLRequest> request,
-		int64 current,
-		int64 total) OVERRIDE {}
-
-	virtual void OnDownloadProgress(CefRefPtr<CefURLRequest> request,
-		int64 current,
-		int64 total) OVERRIDE {}
-
-	virtual void OnDownloadData(CefRefPtr<CefURLRequest> request,
-		const void* data,
-		size_t data_length) OVERRIDE {}
-
-	virtual bool GetAuthCredentials(bool isProxy,
-		const CefString& host,
-		int port,
-		const CefString& realm,
-		const CefString& scheme,
-		CefRefPtr<CefAuthCallback> callback) OVERRIDE
+	for (cookie_container_t::iterator it = vCookies.begin(); it != vCookies.end(); ++it)
 	{
-		return false;
+		cookies += it->name;
+		cookies += L"=";
+		cookies += it->value;
+
+		if (it + 1 != vCookies.end())
+		{
+			cookies += L"; ";
+		}
 	}
-};
+
+	return cookies;
+}
+
+cookie_container_t GetCookies(CefRefPtr<CefResponse> response)
+{
+	cookie_container_t vCookies;
+
+	std::multimap<CefString, CefString> headers;
+	response->GetHeaderMap(headers);
+
+	for (auto it = headers.begin(); it != headers.end(); ++it)
+	{
+		if (it->first == "Set-Cookie")
+		{
+			vCookies.push_back(
+				cookie_t(
+					it->second.ToWString().substr(0, it->second.ToWString().find_first_of('=')),
+					it->second.ToWString().substr(it->second.ToWString().find_first_of('=') + 1,
+					it->second.ToWString().substr(it->second.ToWString().find_first_of('=') + 1).find_first_of(';'))));
+		}
+	}
+
+	return vCookies;
+}
 
 class CCefCookieVisitor : public CefCookieVisitor
 {
 private:
 	IMPLEMENT_REFCOUNTING(CCefCookieVisitor);
 
+private:
+	bool m_bDelete;
+
 protected:
 	std::deque<CefCookie> m_Cookies;
 
 public:
+	CCefCookieVisitor(bool bDelete = false) : m_bDelete(bDelete) {}
+
 	virtual bool Visit(const CefCookie& cookie, int count, int total, bool& deleteCookie) OVERRIDE
 	{
+		deleteCookie = m_bDelete;
 		m_Cookies.push_back(cookie);
 		return true;
 	}
@@ -86,14 +102,6 @@ private:
 	IMPLEMENT_REFCOUNTING(CRequestContextHandler);
 
 public:
-	CRequestContextHandler()
-	{
-	}
-
-	~CRequestContextHandler() 
-	{
-	}
-
 	virtual CefRefPtr<CefCookieManager> GetCookieManager() OVERRIDE
 	{
 		return CefCookieManager::GetGlobalManager(NULL);
@@ -249,9 +257,15 @@ int httpStatusCode)
 void CCefHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser)
 {
 	m_Browser = browser;
-	m_Browser->SendProcessMessage(PID_RENDERER, CefProcessMessage::Create("Browser"));
+	m_Browser->SendProcessMessage(PID_RENDERER, 
+		CefProcessMessage::Create("Browser"));
 
-	CefCookieManager::CreateManager("C:\\cookies", true, NULL);
+	CefRefPtr<CefCookieManager> cookieManager = CefCookieManager::GetGlobalManager(NULL);
+
+	if (cookieManager)
+	{
+		cookieManager->VisitAllCookies(new CCefCookieVisitor(true));
+	}
 }
 
 void CCefHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser)
@@ -270,8 +284,168 @@ void CCefHandler::Close()
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////
+//								JS call up functions
+////////////////////////////////////////////////////////////////////////////////////////////
+
+bool GetAccountInfo()
+{
+	if (!CEF)
+	{
+		return false;
+	}
+
+	if (!CEF->Browser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	frame->ExecuteJavaScript("GetAccountInfo();", frame->GetURL(), 0);
+
+	return true;
+}
+
+bool SetPatchProgress(double progress)
+{
+	if (!CEF)
+	{
+		return false;
+	}
+
+	if (!CEF->Browser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	frame->ExecuteJavaScript("SetProgress(" + std::to_string(floor(progress)) + ");", frame->GetURL(), 0);
+
+	return true;
+}
+
+bool SetPatchMessage(std::string msg)
+{
+	if (!CEF)
+	{
+		return false;
+	}
+
+	if (!CEF->Browser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	frame->ExecuteJavaScript("SetProgressMessage(\"" + TransformPath(msg) + "\");", frame->GetURL(), 0);
+
+	return true;
+}
+
+bool FinishPatch()
+{
+	if (!CEF)
+	{
+		return false;
+	}
+
+	if (!CEF->Browser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	frame->ExecuteJavaScript("FinishPatch();", frame->GetURL(), 0);
+
+	return true;
+}
+
+bool LoginResult(bool bSucceed)
+{
+	if (!GetLauncher())
+	{
+		return false;
+	}
+
+	if (!GetLauncher()->GetBrowser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = GetLauncher()->GetBrowser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	if (bSucceed)
+	{
+		frame->ExecuteJavaScript("LoginResult(1);", frame->GetURL(), 0);
+	}
+	else
+	{
+		frame->ExecuteJavaScript("LoginResult(0);", frame->GetURL(), 0);
+	}
+
+	return true;
+}
+
+bool Logout()
+{
+	if (!GetLauncher())
+	{
+		return false;
+	}
+
+	if (!GetLauncher()->GetBrowser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = GetLauncher()->GetBrowser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	frame->ExecuteJavaScript("Logout();", frame->GetURL(), 0);
+
+	return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+//								Gameforge login routine
+////////////////////////////////////////////////////////////////////////////////////////////
+
 class CInfoRequestClient : public CCefURLRequestClient
 {
+	IMPLEMENT_REFCOUNTING(CInfoRequestClient);
 public:
 	virtual void OnDownloadData(CefRefPtr<CefURLRequest> request,
 		const void* data,
@@ -314,46 +488,9 @@ public:
 	}
 };
 
-std::vector<SCookie> GetCookies(CefRefPtr<CefResponse> response)
-{
-	std::vector<SCookie> vCookies;
-	std::multimap<CefString, CefString> headers;
-
-	response->GetHeaderMap(headers);
-
-	for (auto it = headers.begin(); it != headers.end(); ++it)
-	{
-		if (it->first == "Set-Cookie")
-		{
-			SCookie cookie;
-
-			cookie.name = it->second.ToWString().substr(0, it->second.ToWString().find_first_of('='));;
-			cookie.value = it->second.ToWString().substr(it->second.ToWString().find_first_of('=') + 1,
-				it->second.ToWString().substr(it->second.ToWString().find_first_of('=') + 1).find_first_of(';'));;
-
-			vCookies.push_back(cookie);
-		}
-	}
-
-	return vCookies;
-}
-
 void SendRequestGetInfo(std::vector<SCookie>& vCookies)
 {
-	CefRefPtr<CefRequest> request(CefRequest::Create());
-	request->SetFlags(UR_FLAG_ALLOW_CACHED_CREDENTIALS);
-	request->SetURL("https://account.tera.gameforge.com/launcher/1/account_server_info?attach_auth_ticket=1");
-
-	std::multimap<CefString, CefString> headerMap;
-	headerMap.insert(std::make_pair("Referer", "https://account.tera.gameforge.com/launcher/1"));
-	headerMap.insert(std::make_pair("Host", "account.tera.gameforge.com"));
-	headerMap.insert(std::make_pair("X-Requested-With", "XMLHttpRequest"));
-	headerMap.insert(std::make_pair("Accept", "*/*"));
-	headerMap.insert(std::make_pair("Accept-Charset", "iso-8859-1,*,utf-8"));
-	headerMap.insert(std::make_pair("Accept-Encoding", "gzip,deflate"));
-	headerMap.insert(std::make_pair("UserAgent", "Chrome/29.0.1046.0"));
-
-	static std::vector<SCookie> g_vCookies;
+	static cookie_container_t g_vCookies;
 
 	if (vCookies.empty())
 	{
@@ -364,32 +501,35 @@ void SendRequestGetInfo(std::vector<SCookie>& vCookies)
 		g_vCookies.insert(g_vCookies.begin(), vCookies.begin(), vCookies.end());
 	}
 
-	std::wstring cookies = L"";
-
-	for (auto it = vCookies.begin(); it != vCookies.end(); ++it)
+	std::multimap<CefString, CefString> headerMap;
 	{
-		cookies += it->name;
-		cookies += L"=";
-		cookies += it->value;
-
-		if (it + 1 != vCookies.end())
-		{
-			cookies += L"; ";
-		}
+		headerMap.insert(std::make_pair("Referer", "https://account.tera.gameforge.com/launcher/1"));
+		headerMap.insert(std::make_pair("Host", "account.tera.gameforge.com"));
+		headerMap.insert(std::make_pair("X-Requested-With", "XMLHttpRequest"));
+		headerMap.insert(std::make_pair("Accept", "*/*"));
+		headerMap.insert(std::make_pair("Accept-Charset", "iso-8859-1,*,utf-8"));
+		headerMap.insert(std::make_pair("Accept-Encoding", "gzip,deflate"));
+		headerMap.insert(std::make_pair("UserAgent", "Chrome/29.0.1046.0"));
+		headerMap.insert(std::make_pair("Cookie", GetCookies(vCookies)));
 	}
 
-	headerMap.insert(std::make_pair("Cookie", cookies));
-
-	request->SetHeaderMap(headerMap);
-	request->SetMethod("GET");
+	CefRefPtr<CefRequest> request(CefRequest::Create());
+	{
+		request->SetFlags(UR_FLAG_ALLOW_CACHED_CREDENTIALS);
+		request->SetURL("https://account.tera.gameforge.com/launcher/1/account_server_info?attach_auth_ticket=1");
+		request->SetHeaderMap(headerMap);
+		request->SetMethod("GET");
+	}
 
 	CefRequestContextSettings settings;
-	CefRefPtr<CefURLRequest> urlRequest = CefURLRequest::Create(request, new CInfoRequestClient, 
+	CefRefPtr<CefURLRequest> urlRequest = CefURLRequest::Create(request, new CInfoRequestClient,
 		CefRequestContext::CreateContext(settings, new CRequestContextHandler));
 }
 
 class CAuthenticationClient : public CCefURLRequestClient
 {
+	IMPLEMENT_REFCOUNTING(CAuthenticationClient);
+
 public:
 	virtual void OnRequestComplete(CefRefPtr<CefURLRequest> request) OVERRIDE
 	{
@@ -399,52 +539,45 @@ public:
 
 void SendRequestAuthenticate(std::string& email, std::string& pw, std::vector<SCookie> vCookies)
 {
-	CefRefPtr<CefRequest> request(CefRequest::Create());
-	request->SetFlags(UR_FLAG_ALLOW_CACHED_CREDENTIALS);
-	request->SetURL("https://account.tera.gameforge.com/launcher/1/authenticate");
-
 	std::multimap<CefString, CefString> headerMap;
-	headerMap.insert(std::make_pair("Referer", "https://account.tera.gameforge.com/launcher/1/signin?lang=en&email=" + email + "&kid="));
-	headerMap.insert(std::make_pair("ContentType", "application/x-www-form-urlencoded"));
-	headerMap.insert(std::make_pair("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"));
-	headerMap.insert(std::make_pair("Host", "account.tera.gameforge.com"));
-
-	CefRefPtr<CefPostData> post = CefPostData::Create();
+	{
+		headerMap.insert(std::make_pair("Referer", "https://account.tera.gameforge.com/launcher/1/signin?lang=en&email=" + email + "&kid="));
+		headerMap.insert(std::make_pair("ContentType", "application/x-www-form-urlencoded"));
+		headerMap.insert(std::make_pair("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"));
+		headerMap.insert(std::make_pair("Host", "account.tera.gameforge.com"));
+		headerMap.insert(std::make_pair("Cookie", GetCookies(vCookies)));
+	}
 
 	std::string strPostData = "uft8=%E2%9C%93&user[client_time]=Thu Mar 20 2016 15:00:00 GMT+0100 (Central Standard Time)&user[io_black_box]=TERA&game_id=1&user[email]=" + email + "&user[password]=" + pw;
 
 	CefRefPtr<CefPostDataElement> postData = CefPostDataElement::Create();
-	postData->SetToBytes(strPostData.length(), strPostData.data());
-
-	std::wstring cookies = L"";
-
-	for (auto it = vCookies.begin(); it != vCookies.end(); ++it)
 	{
-		cookies += it->name;
-		cookies += L"=";
-		cookies += it->value;
-
-		if (it + 1 != vCookies.end())
-		{
-			cookies += L"; ";
-		}
+		postData->SetToBytes(strPostData.length(), strPostData.data());
 	}
 
-	headerMap.insert(std::make_pair("Cookie", cookies));
+	CefRefPtr<CefPostData> post = CefPostData::Create();
+	{
+		post->AddElement(postData);
+	}
 
-	post->AddElement(postData);
-
-	request->SetHeaderMap(headerMap);
-	request->SetPostData(post);
-	request->SetMethod("POST");
+	CefRefPtr<CefRequest> request(CefRequest::Create());
+	{
+		request->SetFlags(UR_FLAG_ALLOW_CACHED_CREDENTIALS);
+		request->SetURL("https://account.tera.gameforge.com/launcher/1/authenticate");
+		request->SetHeaderMap(headerMap);
+		request->SetPostData(post);
+		request->SetMethod("POST");
+	}
 
 	CefRequestContextSettings settings;
-	CefRefPtr<CefURLRequest> urlRequest = CefURLRequest::Create(request, new CAuthenticationClient, 
+	CefRefPtr<CefURLRequest> urlRequest = CefURLRequest::Create(request, new CAuthenticationClient,
 		CefRequestContext::CreateContext(settings, new CRequestContextHandler));
 }
 
 class CLoginRequestClient : public CCefURLRequestClient
 {
+	IMPLEMENT_REFCOUNTING(CLoginRequestClient);
+
 private:
 	std::string m_Email;
 	std::string m_Pw;
@@ -465,135 +598,13 @@ public:
 void SendRequestLogin(const std::string& email, const std::string& pw)
 {
 	CefRefPtr<CefRequest> request(CefRequest::Create());
-	request->SetFlags(UR_FLAG_ALLOW_CACHED_CREDENTIALS);
-
-	static const std::string url = "https://account.tera.gameforge.com/launcher/1/signin?lang=en&email=" + email + "&kid=";
-
-	request->SetURL(url);
-	request->SetMethod("GET");
+	{
+		request->SetFlags(UR_FLAG_ALLOW_CACHED_CREDENTIALS);
+		request->SetURL("https://account.tera.gameforge.com/launcher/1/signin?lang=en&email=" + email + "&kid=");
+		request->SetMethod("GET");
+	}
 
 	CefRequestContextSettings settings;
 	CefRefPtr<CefURLRequest> urlRequest = CefURLRequest::Create(request, new CLoginRequestClient(email, pw),
 		CefRequestContext::CreateContext(settings, new CRequestContextHandler));
-}
-
-bool SetPatchProgress(double progress)
-{
-	if (!CEF)
-	{
-		return false;
-	}
-
-	if (!CEF->Browser())
-	{
-		return false;
-	}
-
-	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
-
-	if (!frame)
-	{
-		return false;
-	}
-
-	frame->ExecuteJavaScript("setProgress(" + std::to_string(floor(progress)) + ");", frame->GetURL(), 0);
-
-	return true;
-}
-
-bool SetPatchMessage(std::string msg)
-{
-	if (!CEF)
-	{
-		return false;
-	}
-
-	if (!CEF->Browser())
-	{
-		return false;
-	}
-
-	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
-
-	if (!frame)
-	{
-		return false;
-	}
-
-	frame->ExecuteJavaScript("setProgressMessage(\"" + TransformPath(msg) + "\");", frame->GetURL(), 0);
-
-	return true;
-}
-
-bool FinishPatch()
-{
-	if (!CEF)
-	{
-		return false;
-	}
-
-	if (!CEF->Browser())
-	{
-		return false;
-	}
-
-	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
-
-	if (!frame)
-	{
-		return false;
-	}
-
-	frame->ExecuteJavaScript("finishPatch();", frame->GetURL(), 0);
-
-	return true;
-}
-
-bool LoginResult(bool b)
-{
-	if (!GetLauncher())
-	{
-		return false;
-	}
-
-	if (!GetLauncher()->GetBrowser())
-	{
-		return false;
-	}
-
-	CefRefPtr<CefFrame> frame = GetLauncher()->GetBrowser()->GetMainFrame();
-
-	if (!frame)
-	{
-		return false;
-	}
-
-	std::string result = b ? "1" : "0";
-	frame->ExecuteJavaScript("LoginResult(" + result + ");", frame->GetURL(), 0);
-
-	return true;
-}
-
-bool Logout()
-{
-	if (!GetLauncher())
-	{
-		return false;
-	}
-
-	if (!GetLauncher()->GetBrowser())
-	{
-		return false;
-	}
-
-	CefRefPtr<CefFrame> frame = GetLauncher()->GetBrowser()->GetMainFrame();
-
-	if (!frame)
-	{
-		return false;
-	}
-
-	frame->ExecuteJavaScript("Logout();", frame->GetURL(), 0);
-
-	return true;
 }

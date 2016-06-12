@@ -1,4 +1,4 @@
-
+#include <boost/iostreams/device/mapped_file.hpp>
 #include "xml_manifest_parser.h"
 
 std::string & CManifest::LastError()

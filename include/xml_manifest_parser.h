@@ -4,7 +4,6 @@
 #pragma once
 
 #include "xml.h"
-#include <boost/iostreams/device/mapped_file.hpp>
 
 class CManifest
 {

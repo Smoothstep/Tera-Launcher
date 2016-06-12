@@ -8,6 +8,39 @@
 #include <include\cef_app.h>
 #include <include\cef_render_process_handler.h>
 
+class CCefURLRequestClient : public CefURLRequestClient
+{
+public:
+	~CCefURLRequestClient()
+	{
+
+	}
+
+	virtual void OnRequestComplete(CefRefPtr<CefURLRequest> request) OVERRIDE {}
+
+	virtual void OnUploadProgress(CefRefPtr<CefURLRequest> request,
+		int64 current,
+		int64 total) OVERRIDE {}
+
+	virtual void OnDownloadProgress(CefRefPtr<CefURLRequest> request,
+		int64 current,
+		int64 total) OVERRIDE {}
+
+	virtual void OnDownloadData(CefRefPtr<CefURLRequest> request,
+		const void* data,
+		size_t data_length) OVERRIDE {}
+
+	virtual bool GetAuthCredentials(bool isProxy,
+		const CefString& host,
+		int port,
+		const CefString& realm,
+		const CefString& scheme,
+		CefRefPtr<CefAuthCallback> callback) OVERRIDE
+	{
+		return false;
+	}
+};
+
 class CCefHandler : 
 	public CefRequestHandler,
 	public CefClient, 
@@ -100,15 +133,31 @@ private:
 
 #define CEF CCefHandler::GetInstance()
 
+//////////////////////////////////////
+
 struct SCookie
 {
+	SCookie() {}
+	SCookie(std::wstring& Name, std::wstring& Value) : name(Name), value(Value) {}
+	SCookie(CefCookie& cookie)
+	{
+		name	= std::wstring(cookie.name.str, cookie.name.str + cookie.name.length);
+		value	= std::wstring(cookie.value.str, cookie.value.str + cookie.value.length);
+	}
 	std::wstring name;
 	std::wstring value;
 };
 
-extern void SendRequestGetInfo(std::vector<SCookie>& vCookies);
+typedef SCookie cookie_t;
+typedef std::vector<cookie_t> cookie_container_t;
+typedef std::multimap<CefString, CefString> header_map_t;
 
-extern void SendRequestLogin(const std::string& email, const std::string& pw);
+extern std::wstring GetCookies(cookie_container_t& vCookies);
+extern cookie_container_t GetCookies(CefRefPtr<CefResponse> response);
+
+//////////////////////////////////////
+
+extern bool GetAccountInfo();
 
 extern bool SetPatchProgress(double progress);
 extern bool SetPatchMessage(std::string msg);
@@ -116,5 +165,10 @@ extern bool FinishPatch();
 
 extern bool LoginResult(bool b);
 extern bool Logout();
+
+//////////////////////////////////////
+
+extern void SendRequestGetInfo(std::vector<SCookie>& vCookies);
+extern void SendRequestLogin(const std::string& email, const std::string& pw);
 
 #endif

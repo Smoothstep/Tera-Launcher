@@ -23,6 +23,7 @@ set(headers
 	cef
 	crypt
 	error_codes
+	extension
 	file_info
 	handler
 	launcher
@@ -36,6 +37,9 @@ set(headers
 	torrent
 	xml
 	xml_manifest_parser
+	utils/pool
+	utils/pool_win
+	utils/function
 	)
 	
 set(config
@@ -85,6 +89,7 @@ target_link_libraries(tera-launcher xz.lib)
 target_link_libraries(tera-launcher xdelta3.lib)
 target_link_libraries(tera-launcher libcef.lib)
 target_link_libraries(tera-launcher libcef_dll_wrapper.lib)
+target_link_libraries(tera-launcher KtmW32.lib)
 
 if (WIN32)
 	add_definitions(-D_WIN32_WINNT=0x0600)

@@ -290,6 +290,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptTicket)
 	{
+		TRACEN("Invalid account data: No ticket child.");
 		return false;
 	}
 
@@ -297,6 +298,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptCharsPerServer)
 	{
+		TRACEN("Invalid account data: No chars_per_server child.");
 		return false;
 	}
 
@@ -304,6 +306,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptAccountBits)
 	{
+		TRACEN("Invalid account data: No account_bits child.");
 		return false;
 	}
 
@@ -311,6 +314,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptResultMessage)
 	{
+		TRACEN("Invalid account data: No result-message child.");
 		return false;
 	}
 
@@ -318,6 +322,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptResultCode)
 	{
+		TRACEN("Invalid account data: No result-code child.");
 		return false;
 	}
 
@@ -325,6 +330,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptGameAccountName)
 	{
+		TRACEN("Invalid account data: No game_account_name child.");
 		return false;
 	}
 
@@ -332,6 +338,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptAccessLevel)
 	{
+		TRACEN("Invalid account data: No access_level child.");
 		return false;
 	}
 
@@ -339,6 +346,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptMasterAccountName)
 	{
+		TRACEN("Invalid account data: No master_account_name child.");
 		return false;
 	}
 
@@ -346,6 +354,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptLastConnectedServerId)
 	{
+		TRACEN("Invalid account data: No last_connected_server_id child.");
 		return false;
 	}
 
@@ -353,6 +362,7 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (!ptUserPermission)
 	{
+		TRACEN("Invalid account data: No user_permission child.");
 		return false;
 	}
 
@@ -777,6 +787,8 @@ void CTLauncher::SendHello()
 
 	if (m_bLaunched)
 	{
+		m_strAccountData = "";
+
 		if (!g_pLauncher->RequestAccountInfo())
 		{
 			TRACEN("Cannot request account data.");
@@ -1247,7 +1259,7 @@ bool CLauncher::Patch()
 
 	if (!m_pPatcher->Initialize())
 	{
-		return RetrivePatchStatus();
+		return RetrievePatchStatus();
 	}
 
 	m_pPatcher->AsyncUpdateToLatest();
@@ -1255,7 +1267,7 @@ bool CLauncher::Patch()
 	return true;
 }
 
-bool CLauncher::RetrivePatchStatus()
+bool CLauncher::RetrievePatchStatus()
 {
 	if (!m_pPatcher)
 	{

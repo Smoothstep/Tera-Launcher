@@ -109,7 +109,9 @@ static int CefInit(HINSTANCE hInstance, CefRefPtr<CCefApp> pHandler)
 
 	std::string szDir = boost::filesystem::current_path().generic_string();
 
+#ifdef CACHE_COOKIES
 	CefString(&settings.cache_path)				= std::string(szDir) + "/config/cookies";
+#endif
 	CefString(&settings.resources_dir_path)		= std::string(szDir) + "/config/bin";
 	CefString(&settings.user_data_path)			= std::string(szDir) + "/config/bin";
 	CefString(&settings.locales_dir_path)		= std::string(szDir) + "/config/bin/locales";

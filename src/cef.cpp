@@ -5,8 +5,8 @@
 #include <include/wrapper/cef_helpers.h>
 #include <include/cef_render_process_handler.h>
 
-#include "Handler.h"
 #include "launcher.h"
+#include "extension.h"
 
 bool CCefApp::OnProcessMessageReceived(
 	CefRefPtr<CefBrowser> browser,
@@ -19,7 +19,7 @@ bool CCefApp::OnProcessMessageReceived(
 	}
 	else if (message->GetName() == "AccountInfo")
 	{
-		SendRequestGetInfo(std::vector<SCookie>());
+		GetAccountInfo();
 	}
 
 	return false;
@@ -52,9 +52,8 @@ void CCefApp::OnContextCreated(CefRefPtr<CefBrowser> browser,
 	CefRefPtr<CefFrame> frame,
 	CefRefPtr<CefV8Context> context) 
 {
-	CefRefPtr<CefV8Handler> handler		= new CCefV8Handler();
-
-	CefRefPtr<CefV8Value> object		= context->GetGlobal();
+	CefRefPtr<CefV8Handler> handler	= new CCefV8Handler();
+	CefRefPtr<CefV8Value> object	= context->GetGlobal();
 
 	CefRefPtr<CefV8Value> fOnLogin		= CefV8Value::CreateFunction("OnLogin", handler);
 	CefRefPtr<CefV8Value> fOnStart		= CefV8Value::CreateFunction("OnStart", handler);
@@ -62,6 +61,7 @@ void CCefApp::OnContextCreated(CefRefPtr<CefBrowser> browser,
 	CefRefPtr<CefV8Value> fResumePatch	= CefV8Value::CreateFunction("ResumePatch", handler);
 	CefRefPtr<CefV8Value> fPausePatch	= CefV8Value::CreateFunction("PausePatch", handler);
 	CefRefPtr<CefV8Value> fPatchStatus	= CefV8Value::CreateFunction("GetPatchStatus", handler);
+	CefRefPtr<CefV8Value> fAccountData	= CefV8Value::CreateFunction("SetAccountData", handler);
 
 	object->SetValue("OnLogin",			fOnLogin,		V8_PROPERTY_ATTRIBUTE_NONE);
 	object->SetValue("OnStart",			fOnStart,		V8_PROPERTY_ATTRIBUTE_NONE);
@@ -69,6 +69,11 @@ void CCefApp::OnContextCreated(CefRefPtr<CefBrowser> browser,
 	object->SetValue("ResumePatch",		fResumePatch,	V8_PROPERTY_ATTRIBUTE_NONE);
 	object->SetValue("PausePatch",		fPausePatch,	V8_PROPERTY_ATTRIBUTE_NONE);
 	object->SetValue("GetPatchStatus",	fPatchStatus,	V8_PROPERTY_ATTRIBUTE_NONE);
+	object->SetValue("SetAccountData", fAccountData,	V8_PROPERTY_ATTRIBUTE_NONE);
+
+	CefRefPtr<CefV8Value> fCreateXSRequest = CefV8Value::CreateFunction("CreateXSRequest", handler);
+
+	object->SetValue("CreateXSRequest", fCreateXSRequest, V8_PROPERTY_ATTRIBUTE_NONE);
 }
 
 void CCefApp::OnWebKitInitialized()
@@ -217,8 +222,64 @@ bool CCefV8Handler::Execute(const CefString& name,
 			return true;
 		}
 
-		retval = CefV8Value::CreateBool(GetLauncher()->RetrivePatchStatus());
+		retval = CefV8Value::CreateBool(GetLauncher()->RetrievePatchStatus());
 
+		return true;
+	}
+	else if (name == "CreateXSRequest")
+	{
+		Extension::CXSHttpRequest* pRequest = new Extension::CXSHttpRequest();
+
+		retval = pRequest->CreateObject();
+
+		return true;
+	}
+	else if (name == "SetAccountData")
+	{
+		if (!GetLauncher())
+		{
+			retval = CefV8Value::CreateBool(false);
+			return true;
+		}
+
+		if (!GetLauncher()->GetBrowser())
+		{
+			retval = CefV8Value::CreateBool(false);
+			return true;
+		}
+
+		if (arguments.empty())
+		{
+			retval = CefV8Value::CreateBool(false);
+			return true;
+		}
+
+		if (!arguments[0]->IsString())
+		{
+			retval = CefV8Value::CreateBool(false);
+			return true;
+		}
+
+		CefString data = arguments[0]->GetStringValue();
+
+		if (!ValidAccount(data.ToString()))
+		{
+			retval = CefV8Value::CreateBool(false);
+			return true;
+		}
+
+		CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("Account");
+		{
+			msg->GetArgumentList()->SetString(0, data);
+		}
+
+		if (!GetLauncher()->GetBrowser()->SendProcessMessage(PID_BROWSER, msg))
+		{
+			retval = CefV8Value::CreateBool(false);
+			return true;
+		}
+
+		retval = CefV8Value::CreateBool(true);
 		return true;
 	}
 

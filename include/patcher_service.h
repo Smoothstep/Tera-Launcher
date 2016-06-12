@@ -5,6 +5,7 @@
 #include <boost/asio.hpp>
 #include <boost/atomic.hpp>
 
+#ifdef BOOST_PATCH_SERVICE
 class CPatchService
 {
 private:
@@ -71,5 +72,40 @@ public:
 		m_Service.post(f);
 	}
 };
+#else
+#include "utils\pool.h"
 
+class CPatchService : public Thread::CThreadPool
+{
+public:
+	template<typename T, typename... Args>
+	void Work(T& func, Args&&... args)
+	{
+		PostTask(new Thread::CTask(new CFunction(func, args...)));
+	}
+
+	template<typename C, typename T, typename... Args>
+	void Work(T(C::*func)(Args...), C* p, Args&&... args)
+	{
+		PostTask(new Thread::CTask(new CFunction(func, args...)));
+	}
+
+	template<typename C, typename T, typename... Args>
+	void Work(T(C::*func)(Args...), C* p, Args&... args)
+	{
+		PostTask(new Thread::CTask(new CFunction(func, p, args...)));
+	}
+
+	template<typename C>
+	void Work(BOOST_THREAD_RV_REF(C) f)
+	{
+		PostTask(new Thread::CTask(new CFunction(f)));
+	}
+
+	void SetupPatchThreads(int iCount)
+	{
+		SetupThreads(iCount);
+	}
+};
+#endif
 #endif
