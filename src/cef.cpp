@@ -5,9 +5,14 @@
 #include <include/wrapper/cef_helpers.h>
 #include <include/cef_render_process_handler.h>
 
+#include <Shlobj.h>
+
 #include "launcher.h"
 #include "extension.h"
 
+/*
+*	Executed by Render process
+*/
 bool CCefApp::OnProcessMessageReceived(
 	CefRefPtr<CefBrowser> browser,
 	CefProcessId source_process,
@@ -42,26 +47,138 @@ void CCefApp::OnContextInitialized()
 #endif
 
 	CefBrowserSettings settings;
-	if (!CefBrowserHost::CreateBrowser(wInfo, new CCefHandler, "file:///config/login.html", settings, NULL))
+	if (!CefBrowserHost::CreateBrowser(wInfo, 
+		new CCefHandler, LOGIN_HTML, settings, NULL))
 	{
-		MessageBox(GetActiveWindow(), L"Unable to create browser.", L"Unable to create browser.", 0); abort();
+		MessageBox(GetActiveWindow(), 
+			L"Unable to create browser.", L"Unable to create browser.", 0); 
+		abort();
 	}
 }
 
-void CCefApp::OnContextCreated(CefRefPtr<CefBrowser> browser,
+class CLauncherAccessor : public CefV8Accessor 
+{
+	IMPLEMENT_REFCOUNTING(CLauncherAccessor);
+
+public:
+	virtual bool Get(
+		const CefString& name,
+		const CefRefPtr<CefV8Value> object,
+		CefRefPtr<CefV8Value>& retval,
+		CefString& exception) OVERRIDE 
+	{
+		if (!GetLauncher())
+		{
+			exception = "No Launcher object";
+			return true;
+		}
+
+		if (name == "SLS_URL") 
+		{
+			retval = CefV8Value::CreateString(GetLauncher()->GetServerList());
+			return true;
+		}
+		else if (name == "ACC_DATA")
+		{
+			retval = CefV8Value::CreateString(GetLauncher()->GetAccountData());
+			return true;
+		}
+
+		return false;
+	}
+
+	virtual bool Set(
+		const CefString& name,
+		const CefRefPtr<CefV8Value> object,
+		const CefRefPtr<CefV8Value> value,
+		CefString& exception) OVERRIDE 
+	{
+		if (!GetLauncher())
+		{
+			exception = "No Launcher object";
+			return true;
+		}
+
+		if (!GetLauncher()->GetBrowser())
+		{
+			exception = "No browser object";
+			return true;
+		}
+
+		if (name == "SLS_URL") 
+		{
+			if (value->IsString()) 
+			{
+				if (!GetLauncher()->IndicateSLURL(value->GetStringValue()))
+				{
+					exception = "Invalid Serverlist url";
+				}
+				else
+				{
+					GetLauncher()->GetBrowser()->SendProcessMessage(PID_BROWSER,
+						CefProcessMessage::Create("UpdateConfig"));
+				}
+			}
+			else
+			{
+				exception = "Invalid value type";
+			}
+
+			return true;
+		}
+		else if (name == "ACC_DATA")
+		{
+			if (value->IsString())
+			{
+				if (!ValidAccount(value->GetStringValue()))
+				{
+					exception = "Invalid Account";
+				}
+				else
+				{
+					CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("Account");
+					{
+						msg->GetArgumentList()->SetString(0, value->GetStringValue());
+					}
+
+					GetLauncher()->GetBrowser()->SendProcessMessage(PID_BROWSER, msg);
+				}
+			}
+			else
+			{
+				exception = "Invalid value type";
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+};
+
+void CCefApp::OnContextCreated(
+	CefRefPtr<CefBrowser> browser,
 	CefRefPtr<CefFrame> frame,
 	CefRefPtr<CefV8Context> context) 
 {
 	CefRefPtr<CefV8Handler> handler	= new CCefV8Handler();
 	CefRefPtr<CefV8Value> object	= context->GetGlobal();
 
-	CefRefPtr<CefV8Value> fOnLogin		= CefV8Value::CreateFunction("OnLogin", handler);
-	CefRefPtr<CefV8Value> fOnStart		= CefV8Value::CreateFunction("OnStart", handler);
-	CefRefPtr<CefV8Value> fOnPatch		= CefV8Value::CreateFunction("OnPatch", handler);
-	CefRefPtr<CefV8Value> fResumePatch	= CefV8Value::CreateFunction("ResumePatch", handler);
-	CefRefPtr<CefV8Value> fPausePatch	= CefV8Value::CreateFunction("PausePatch", handler);
-	CefRefPtr<CefV8Value> fPatchStatus	= CefV8Value::CreateFunction("GetPatchStatus", handler);
-	CefRefPtr<CefV8Value> fAccountData	= CefV8Value::CreateFunction("SetAccountData", handler);
+	CefRefPtr<CefV8Value> fAccessorObj = CefV8Value::CreateObject(new CLauncherAccessor);
+
+	fAccessorObj->SetValue("SLS_URL",	V8_ACCESS_CONTROL_DEFAULT, V8_PROPERTY_ATTRIBUTE_NONE);
+	fAccessorObj->SetValue("ACC_DATA",	V8_ACCESS_CONTROL_DEFAULT, V8_PROPERTY_ATTRIBUTE_NONE);
+
+	object->SetValue("Launcher", fAccessorObj, V8_PROPERTY_ATTRIBUTE_NONE);
+
+	CefRefPtr<CefV8Value> fOnLogin		= CefV8Value::CreateFunction("OnLogin",				handler);
+	CefRefPtr<CefV8Value> fOnStart		= CefV8Value::CreateFunction("OnStart",				handler);
+	CefRefPtr<CefV8Value> fOnPatch		= CefV8Value::CreateFunction("OnPatch",				handler);
+	CefRefPtr<CefV8Value> fResumePatch	= CefV8Value::CreateFunction("ResumePatch",			handler);
+	CefRefPtr<CefV8Value> fPausePatch	= CefV8Value::CreateFunction("PausePatch",			handler);
+	CefRefPtr<CefV8Value> fPatchStatus	= CefV8Value::CreateFunction("GetPatchStatus",		handler);
+	CefRefPtr<CefV8Value> fAccountData	= CefV8Value::CreateFunction("SetAccountData",		handler);
+	CefRefPtr<CefV8Value> fGetTeraDir	= CefV8Value::CreateFunction("GetTeraDirectory",	handler);
 
 	object->SetValue("OnLogin",			fOnLogin,		V8_PROPERTY_ATTRIBUTE_NONE);
 	object->SetValue("OnStart",			fOnStart,		V8_PROPERTY_ATTRIBUTE_NONE);
@@ -69,7 +186,8 @@ void CCefApp::OnContextCreated(CefRefPtr<CefBrowser> browser,
 	object->SetValue("ResumePatch",		fResumePatch,	V8_PROPERTY_ATTRIBUTE_NONE);
 	object->SetValue("PausePatch",		fPausePatch,	V8_PROPERTY_ATTRIBUTE_NONE);
 	object->SetValue("GetPatchStatus",	fPatchStatus,	V8_PROPERTY_ATTRIBUTE_NONE);
-	object->SetValue("SetAccountData", fAccountData,	V8_PROPERTY_ATTRIBUTE_NONE);
+	object->SetValue("SetAccountData",	fAccountData,	V8_PROPERTY_ATTRIBUTE_NONE);
+	object->SetValue("GetTeraDirectory",fGetTeraDir,	V8_PROPERTY_ATTRIBUTE_NONE);
 
 	CefRefPtr<CefV8Value> fCreateXSRequest = CefV8Value::CreateFunction("CreateXSRequest", handler);
 
@@ -86,13 +204,16 @@ void CCefApp::OnWebKitInitialized()
 
 	if (!CefRegisterExtension("v8/copyCub", extensionCode, new CCefV8Handler()))
 	{
-		MessageBox(GetActiveWindow(), L"Failed to setup extension.", L"Failed to setup extension.", 0);
+		MessageBox(GetActiveWindow(), 
+			L"Failed to setup extension.", L"Failed to setup extension.", 0);
 		abort();
 	}
 #endif
 }
 
-bool CCefV8Handler::Execute(const CefString& name,
+// Processed by Render process
+bool CCefV8Handler::Execute(
+	const CefString& name,
 	CefRefPtr<CefV8Value> object,
 	const CefV8ValueList& arguments,
 	CefRefPtr<CefV8Value>& retval,
@@ -151,7 +272,8 @@ bool CCefV8Handler::Execute(const CefString& name,
 			return true;
 		}
 
-		if (!GetLauncher()->GetBrowser()->SendProcessMessage(PID_BROWSER, CefProcessMessage::Create("Start")))
+		if (!GetLauncher()->GetBrowser()->SendProcessMessage(PID_BROWSER, 
+			CefProcessMessage::Create("Start")))
 		{
 			retval = CefV8Value::CreateBool(false);
 			return true;
@@ -230,7 +352,10 @@ bool CCefV8Handler::Execute(const CefString& name,
 	{
 		Extension::CXSHttpRequest* pRequest = new Extension::CXSHttpRequest();
 
-		retval = pRequest->CreateObject();
+		if (pRequest)
+		{
+			retval = pRequest->CreateObject();
+		}
 
 		return true;
 	}
@@ -280,6 +405,62 @@ bool CCefV8Handler::Execute(const CefString& name,
 		}
 
 		retval = CefV8Value::CreateBool(true);
+		return true;
+	}
+	else if (name == "GetTeraDirectory")
+	{
+		if (!GetLauncher())
+		{
+			return true;
+		}
+
+		if (!GetLauncher()->GetBrowser())
+		{
+			return true;
+		}
+
+		CefString strInitialPath = "";
+
+		if (!arguments.empty())
+		{
+			if (!arguments[0]->IsString())
+			{
+				return true;
+			}
+
+			strInitialPath = arguments[0]->GetStringValue();
+		}
+
+		BROWSEINFOA browseInfo = { 0 };
+
+		browseInfo.lpszTitle= "Browse Directory";
+		browseInfo.hwndOwner= GetForegroundWindow();
+		browseInfo.lParam	= reinterpret_cast<LPARAM>(strInitialPath.ToString().c_str());
+
+		LPITEMIDLIST lpList = SHBrowseForFolderA(&browseInfo);
+		
+		if (lpList != NULL)
+		{
+			char path[_MAX_PATH] = { 0 };
+
+			if (SHGetPathFromIDListA(lpList, path))
+			{
+				if (GetLauncher()->IndicateGameDirectory(path))
+				{
+					retval = CefV8Value::CreateString(path);
+
+					CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("SetTLPath");
+					{
+						msg->GetArgumentList()->SetString(0, std::string(path) + "\\" DEFAULT_TL_PATH);
+					}
+
+					GetLauncher()->GetBrowser()->SendProcessMessage(PID_BROWSER, msg);
+				}
+			}
+
+			CoTaskMemFree(lpList);
+		}
+
 		return true;
 	}
 

@@ -248,7 +248,7 @@ public:
 		return false;
 	}
 
-	inline void ReadHeaderFromData(char* pData)
+	inline void ReadHeaderFromData(const char* pData)
 	{
 		memcpy(&m_Header.version, pData, ARC_DIRE_SIZE - 4);
 	}
@@ -335,12 +335,12 @@ public:
 #endif
 	}
 
-	inline void SetFilePath(std::string path)
+	inline void SetFilePath(const std::string& path)
 	{
 		m_strFilePath = path;
 	}
 
-	inline void SetTempPath(std::string path)
+	inline void SetTempPath(const std::string& path)
 	{
 		m_strTempPath = path;
 	}
@@ -417,7 +417,7 @@ public:
 		return false;
 	}
 
-	inline void ReadHeaderFromData(char* pData)
+	inline void ReadHeaderFromData(const char* pData)
 	{
 		memcpy(&m_Header.version, pData, ARC_FILE_SIZE - 4);
 	}
@@ -426,13 +426,16 @@ public:
 	{
 		if (f)
 		{
-			return (m_CurrentSize += fread_s(&m_vCompressedData[m_CurrentSize], m_vCompressedData.size() - m_CurrentSize, 1, m_vCompressedData.size() - m_CurrentSize, f)) == m_vCompressedData.size();
+			return (m_CurrentSize += fread_s(
+				&m_vCompressedData[m_CurrentSize], 
+				m_vCompressedData.size() - m_CurrentSize, 1, 
+				m_vCompressedData.size() - m_CurrentSize, f)) == m_vCompressedData.size();
 		}
 
 		return false;
 	}
 
-	inline void ReadDataFromData(char* pData, size_t iSize)
+	inline void ReadDataFromData(const char* pData, size_t iSize)
 	{
 		memcpy(&m_vCompressedData[m_CurrentSize], pData, iSize);
 		{
@@ -722,7 +725,8 @@ public:
 		return kSuccess;
 	}
 
-	int32_t WriteDecompressed(boost::filesystem::path pCurrent = boost::filesystem::current_path())
+	int32_t WriteDecompressed(
+		boost::filesystem::path pCurrent = boost::filesystem::current_path())
 	{
 		boost::system::error_code error;
 
@@ -958,7 +962,7 @@ public:
 		}
 	}
 
-	CArchiveFile* GetArchiveFileByName(std::string strName, bool bReversed = false)
+	CArchiveFile* GetArchiveFileByName(const std::string& strName, bool bReversed = false)
 	{
 		if (!bReversed)
 		{
@@ -988,7 +992,7 @@ public:
 		return NULL;
 	}
 
-	CArchiveDirectoryFile* GetArchiveDirectoryFileByName(std::string strName, bool bReversed = false)
+	CArchiveDirectoryFile* GetArchiveDirectoryFileByName(const std::string& strName, bool bReversed = false)
 	{
 		if (!bReversed)
 		{
@@ -1222,8 +1226,11 @@ public:
 		return ret == Z_STREAM_END ? kSuccess : kInflateError;
 	}
 
-	// If a archive file is really big - ..
-	int UnpackNextArchiveFile(boost::filesystem::path path, std::set<size_t>* pFilesToSkip = NULL, CArchiveFile* pPartFile = NULL)
+	// If a archive file is really big
+	int UnpackNextArchiveFile(
+		boost::filesystem::path path, 
+		std::set<size_t>* pFilesToSkip = NULL, 
+		CArchiveFile* pPartFile = NULL)
 	{
 		int error = kSuccess;
 
@@ -1367,6 +1374,8 @@ public:
 
 	static inline int LoadDirectoryFile(FILE *f, CArchiveDirectoryFile* pDirectoryFile)
 	{
+		size_t read;
+
 		if (!pDirectoryFile)
 		{
 			return kInsufficientMemory;
@@ -1382,14 +1391,16 @@ public:
 			return kInvalidFile;
 		}
 
-		size_t read = fread_s(&pDirectoryFile->GetHeaderRef().filename, MAX_FN_LEN, pDirectoryFile->GetHeaderRef().filename_len, 1, f);
+		read = fread_s(&pDirectoryFile->GetHeaderRef().filename, 
+			MAX_FN_LEN, pDirectoryFile->GetHeaderRef().filename_len, 1, f);
 
 		if (!read)
 		{
 			return kInvalidFile;
 		}
 
-		read = fread_s(&pDirectoryFile->GetHeaderRef().extrafield, MAX_FN_LEN, pDirectoryFile->GetHeaderRef().extra_field_len, 1, f);
+		read = fread_s(&pDirectoryFile->GetHeaderRef().extrafield, 
+			MAX_FN_LEN, pDirectoryFile->GetHeaderRef().extra_field_len, 1, f);
 
 		if (!read)
 		{
@@ -1401,6 +1412,8 @@ public:
 
 	static inline int LoadFile(FILE* f, CArchiveFile* pFile, bool bReadData = true)
 	{
+		size_t read;
+
 		if (!pFile)
 		{
 			return kInsufficientMemory;
@@ -1416,7 +1429,8 @@ public:
 			return kInvalidFile;
 		}
 
-		size_t read = fread_s(&pFile->GetHeaderRef().filename, MAX_FN_LEN, pFile->GetHeaderRef().filename_len, 1, f);
+		read = fread_s(&pFile->GetHeaderRef().filename, 
+			MAX_FN_LEN, pFile->GetHeaderRef().filename_len, 1, f);
 
 		if (!read)
 		{
@@ -1425,7 +1439,8 @@ public:
 
 		if (pFile->GetHeaderRef().extra_field_len)
 		{
-			read = fread_s(&pFile->GetHeaderRef().extrafield, MAX_FN_LEN, pFile->GetHeaderRef().extra_field_len, 1, f);
+			read = fread_s(&pFile->GetHeaderRef().extrafield, 
+				MAX_FN_LEN, pFile->GetHeaderRef().extra_field_len, 1, f);
 
 			if (!read)
 			{
@@ -1451,7 +1466,10 @@ public:
 		return kSuccess;
 	}
 
-	int LoadArchive(const char* szFile, std::set<size_t>* pFilesToSkip = NULL, CArchiveFile* pPartFile = NULL)
+	int LoadArchive(
+		const char* szFile, 
+		std::set<size_t>* pFilesToSkip = NULL, 
+		CArchiveFile* pPartFile = NULL)
 	{
 		int error = kSuccess;
 
@@ -1549,7 +1567,9 @@ public:
 
 				if ((error = LoadFile(f, m_File)) != kSuccess)
 				{
-					m_LastFileRequiredSize = m_File->GetHeaderRef().compressed_size + m_File->GetHeaderRef().uncompressed_size;
+					m_LastFileRequiredSize = 
+						m_File->GetHeaderRef().compressed_size + 
+						m_File->GetHeaderRef().uncompressed_size;
 
 					if (error != kFilePart)
 					{
@@ -1587,7 +1607,7 @@ public:
 		return error;
 	}
 
-	inline int MEMLoadDirectoryFile(char* pData, CArchiveDirectoryFile* pDirectoryFile)
+	inline int MEMLoadDirectoryFile(const char* pData, CArchiveDirectoryFile* pDirectoryFile)
 	{
 		if (!pDirectoryFile)
 		{
@@ -1603,14 +1623,16 @@ public:
 
 		if (pDirectoryFile->GetHeaderRef().filename_len)
 		{
-			memcpy(pDirectoryFile->GetHeaderRef().filename, pData + m_CurrentOffset + 
-				ARC_DIRE_SIZE - 4, pDirectoryFile->GetHeaderRef().filename_len);
+			memcpy(pDirectoryFile->GetHeaderRef().filename, 
+				pData + m_CurrentOffset + ARC_DIRE_SIZE - 4, 
+				pDirectoryFile->GetHeaderRef().filename_len);
 		}
 
 		if (pDirectoryFile->GetHeaderRef().extra_field_len)
 		{
-			memcpy(pDirectoryFile->GetHeaderRef().extrafield, pData + m_CurrentOffset + 
-				ARC_DIRE_SIZE + pDirectoryFile->GetHeaderRef().filename_len - 4, pDirectoryFile->GetHeaderRef().extra_field_len);
+			memcpy(pDirectoryFile->GetHeaderRef().extrafield, 
+				pData + m_CurrentOffset + ARC_DIRE_SIZE + pDirectoryFile->GetHeaderRef().filename_len - 4, 
+				pDirectoryFile->GetHeaderRef().extra_field_len);
 		}
 
 		m_CurrentOffset += pDirectoryFile->GetHeaderSize();
@@ -1618,7 +1640,7 @@ public:
 		return kSuccess;
 	}
 
-	inline int MEMLoadFile(char* pData, CArchiveFile* pFile)
+	inline int MEMLoadFile(const char* pData, CArchiveFile* pFile)
 	{
 		if (!pFile)
 		{
@@ -1634,14 +1656,16 @@ public:
 
 		if (pFile->GetHeaderRef().filename_len)
 		{
-			memcpy(pFile->GetHeaderRef().filename, pData + m_CurrentOffset +
-				ARC_FILE_SIZE - 4, pFile->GetHeaderRef().filename_len);
+			memcpy(pFile->GetHeaderRef().filename, 
+				pData + m_CurrentOffset + ARC_FILE_SIZE - 4, 
+				pFile->GetHeaderRef().filename_len);
 		}
 
 		if (pFile->GetHeaderRef().extra_field_len)
 		{
-			memcpy(pFile->GetHeaderRef().extrafield, pData + m_CurrentOffset +
-				ARC_FILE_SIZE + pFile->GetHeaderRef().filename_len - 4, pFile->GetHeaderRef().extra_field_len);
+			memcpy(pFile->GetHeaderRef().extrafield, pData + m_CurrentOffset +ARC_FILE_SIZE + 
+				pFile->GetHeaderRef().filename_len - 4, 
+				pFile->GetHeaderRef().extra_field_len);
 		}
 
 		if (!pFile->Resize())
@@ -1654,7 +1678,7 @@ public:
 		return kSuccess;
 	}
 
-	int MEMLoadArchive(char* pData, size_t iSize, bool bSplitted, CArchiveFile* pPartFile = NULL)
+	int MEMLoadArchive(const char* pData, size_t iSize, bool bSplitted, CArchiveFile* pPartFile = NULL)
 	{
 		int error = kSuccess;
 
@@ -1738,7 +1762,8 @@ public:
 		{
 			CArchiveFile* pArchiveFile = *it;
 			{
-				pArchiveFile->WriteDecompressed(szPath ? szPath : (char*)pArchiveFile->GetHeaderRef().filename);
+				pArchiveFile->WriteDecompressed(szPath ? szPath : 
+					(char*)pArchiveFile->GetHeaderRef().filename);
 
 				if (bFreeIfDecompressed)
 				{
@@ -1796,14 +1821,17 @@ public:
 
 				if (true /* m_DirectoryFile->PasswordLength() >= ENCRYPT_HEADER_LENGTH) */)
 				{
-					memcpy(m_DirectoryFile->GetPassword(), &m_DirectoryFile->GetHeaderRef().extrafield[4], m_DirectoryFile->PasswordLength());
+					memcpy(m_DirectoryFile->GetPassword(), 
+						&m_DirectoryFile->GetHeaderRef().extrafield[4], 
+						m_DirectoryFile->PasswordLength());
 				}
 				else
 				{
 					for (size_t len = m_DirectoryFile->PasswordLength(); len != -1; --len)
 					{
 						szPassword[m_DirectoryFile->PasswordLength() - len] =
-							m_DirectoryFile->GetHeaderRef().extrafield[4 + m_DirectoryFile->PasswordLength() - len];
+							m_DirectoryFile->GetHeaderRef().extrafield[4 +
+							m_DirectoryFile->PasswordLength() - len];
 					}
 				}
 
@@ -1828,7 +1856,8 @@ public:
 
 				for (size_t i = ENCRYPT_HEADER_LENGTH; i < pFile->GetCompressedData().size(); ++i)
 				{
-					pFile->GetCompressedData()[i] = zdecode(keys, crcTab, pFile->GetCompressedData()[i]);
+					pFile->GetCompressedData()[i] = zdecode(keys, crcTab, 
+						pFile->GetCompressedData()[i]);
 				}
 			}
 

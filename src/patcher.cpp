@@ -20,12 +20,14 @@
 #include "Launcher.h"
 #include "tera_zip_format.h"
 #include "torrent.h"
+#include "config.h"
 #include "log.h"
 
 #define endl ""
+
 #define P(x) (char*)(x)
 
-#define GIGABYTE 1073741824
+#define GIGABYTE 1024 * 1024 * 1024
 
 template<class C, class T>
 static __forceinline C Cast(T& value)
@@ -45,8 +47,10 @@ static __forceinline C Cast(T& value)
 	{
 		std::cerr << excp.what();
 
-		BOOST_ASSERT_MSG(false, static_cast<std::stringstream&>(std::stringstream() << 
-			"Unable to cast to " << typeid(C).name() << " from " << typeid(T).name() << " : " << excp.what()));
+		BOOST_ASSERT_MSG(false, static_cast<std::stringstream&>(std::stringstream()
+			<< "Unable to cast to " 
+			<< typeid(C).name() << " from " 
+			<< typeid(T).name() << " : " << excp.what()));
 
 		ret = C();
 	}
@@ -57,6 +61,7 @@ static __forceinline C Cast(T& value)
 
 CPatcher::CPatcher(Callback::CPatchCallback& callback) :
 	m_iMyVersion(-1),
+	m_Config(NULL),
 	m_CurrentBufferOffset(0),
 	m_DownloadBuffer(NULL),
 	m_DownloadBufferSize(0),
@@ -75,6 +80,30 @@ CPatcher::~CPatcher()
 		free(m_DownloadBuffer);
 		m_DownloadBuffer = NULL;
 	}
+
+	if (m_Config)
+	{
+		delete m_Config;
+		m_Config = NULL;
+	}
+}
+
+bool CPatcher::SetupPath(const std::string & strDirectory)
+{
+	if (!m_Config)
+	{
+		if (!ReadConfiguration())
+		{
+			return false;
+		}
+	}
+
+	m_Config->ChangeNode("tera_game_path", strDirectory.c_str());
+
+	m_strGamePath	= strDirectory;
+	m_strClientPath = m_strGamePath + "\\Client";
+
+	return m_Config->WriteIni((boost::filesystem::current_path().string() + "\\" + PATCHER_CONFIG_PATH).c_str());
 }
 
 bool CPatcher::Initialize()
@@ -101,7 +130,9 @@ bool CPatcher::Initialize()
 	return true;
 }
 
-bool CPatcher::FetchFileInfo(std::string file, CArchiveDirectoryFile * pInfoFileDirectory)
+bool CPatcher::FetchFileInfo(
+	const std::string& file, 
+	CArchiveDirectoryFile * pInfoFileDirectory)
 {
 	int32_t error;
 
@@ -123,8 +154,10 @@ bool CPatcher::FetchFileInfo(std::string file, CArchiveDirectoryFile * pInfoFile
 	SEEK(f, 0, SEEK_END);
 
 	uint64_t iEnd = TELL(f);
-	uint64_t iSize = pInfoFileDirectory->GetHeaderRef().compressed_size + pInfoFileDirectory->GetHeaderRef().extra_field_len + 
-		pInfoFileDirectory->GetHeaderRef().filename_len + ARC_FILE_SIZE - sizeof(int);
+	uint64_t iSize = 
+		pInfoFileDirectory->GetHeaderRef().compressed_size	+ 
+		pInfoFileDirectory->GetHeaderRef().extra_field_len	+ 
+		pInfoFileDirectory->GetHeaderRef().filename_len		+ ARC_FILE_SIZE - sizeof(int);
 
 	if (iEnd < iSize)
 	{
@@ -162,21 +195,34 @@ bool CPatcher::FetchFileInfo(std::string file, CArchiveDirectoryFile * pInfoFile
 
 	CArchive archive;
 
-	if ((error = archive.MEMLoadArchive(P(&archiveFile.GetDecompressedData()[0]), archiveFile.GetDecompressedData().size(), false)) != kSuccess)
+	if ((error = archive.MEMLoadArchive(
+		P(&archiveFile.GetDecompressedData()[0]), 
+		archiveFile.GetDecompressedData().size(), false)) != kSuccess)
 	{
-		alert(m_Callback, "Error: Failed to load decompressed info file: " << file << " Message: " << ErrorMessage(error));
+		alert(m_Callback, 
+			"Error: Failed to load decompressed info file: " 
+			<< file << " Message: " << ErrorMessage(error));
+
 		return false;
 	}
 
 	if ((error = archive.DecompressAll()) != kSuccess)
 	{
-		alert(m_Callback, "Error: Failed to decompress decompressed info file: " << file << " Message: " << ErrorMessage(error));
+		alert(m_Callback, 
+			"Error: Failed to decompress decompressed info file: " 
+			<< file << " Message: " << ErrorMessage(error));
+
 		return false;
 	}
 
-	if (!m_FileInfo.LoadFileInfo(P(&archive.GetArchiveFiles()[0]->GetDecompressedData()[0]), archive.GetArchiveFiles()[0]->GetDecompressedData().size()))
+	if (!m_FileInfo.LoadFileInfo(
+		P(&archive.GetArchiveFiles()[0]->GetDecompressedData()[0]), 
+		archive.GetArchiveFiles()[0]->GetDecompressedData().size()))
 	{
-		alert(m_Callback, "Error: Could not load info file: " << file << " Message: " << m_FileInfo.GetLastErrorMessage());
+		alert(m_Callback, 
+			"Error: Could not load info file: " << file <<  " "
+			"Message: " << m_FileInfo.GetLastErrorMessage());
+
 		return false;
 	}
 
@@ -217,7 +263,11 @@ bool CPatcher::HTTPValid(boost::asio::streambuf& response)
 	return true;
 }
 
-int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bCheckCompleted, bool bFlush)
+int CPatcher::HTTPDownloadFile(
+	const std::string& link, 
+	const std::string& filename, 
+	bool bCheckCompleted, 
+	bool bFlush)
 {
 	uint64_t size, currentSize, fileSize;
 
@@ -308,14 +358,15 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 	
 	m_HTTPSocket.close();
 	{
-		boost::asio::ip::tcp::resolver				resolver(m_HTTPService);
-		boost::asio::ip::tcp::resolver::query		query(m_strDownloadHost, "http");
-		boost::asio::ip::tcp::resolver::iterator	endpoint_iterator = resolver.resolve(query, error);
-		boost::asio::ip::tcp::resolver::iterator	end;
+		boost::asio::ip::tcp::resolver resolver(m_HTTPService);
+		boost::asio::ip::tcp::resolver::query query(m_strDownloadHost, "http");
+		boost::asio::ip::tcp::resolver::iterator endpoint_iterator = resolver.resolve(query, error);
+		boost::asio::ip::tcp::resolver::iterator end;
 
 		if (error)
 		{
-			alert(m_Callback,"Error: Could not resolve download host: " << m_strDownloadHost << endl);
+			alert(m_Callback,
+				"Error: Could not resolve download host: " << m_strDownloadHost << endl);
 			return 0;
 		}
 
@@ -332,7 +383,10 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 
 	if (error)
 	{
-		alert(m_Callback,"Error: Failed to connect to HTTP download server: " << m_strDownloadHost << endl);
+		alert(m_Callback,
+			"Error: Failed to connect to HTTP download server: " 
+			<< m_strDownloadHost << endl);
+
 		return 0;
 	}
 
@@ -448,7 +502,8 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 	while(!error)
 	{
 		m_CurrentBufferOffset += boost::asio::read(m_HTTPSocket, 
-			boost::asio::buffer(m_DownloadBuffer, m_DownloadBufferSize - m_CurrentBufferOffset), error);
+			boost::asio::buffer(m_DownloadBuffer, 
+				m_DownloadBufferSize - m_CurrentBufferOffset), error);
 
 		if (m_CurrentBufferOffset == m_DownloadBufferSize)
 		{
@@ -486,14 +541,17 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 	{
 		assert(fileSize < (size - currentSize));
 
-		alert(m_Callback,"Warning: File not completely downloaded - Retrying in 1 minute." << endl);
+		alert(m_Callback,
+			"Warning: File not completely downloaded - Retrying in 1 minute." << endl);
 
 		ofTmpFile.close();
 		ofTmpInfoFile.close();
 
 		boost::this_thread::sleep_for(boost::chrono::minutes(1));
 		{
-			m_HTTPService.post(boost::bind(&CPatcher::HTTPDownloadFile, this, link, filename, bCheckCompleted, bFlush));
+			m_HTTPService.post(boost::bind(&CPatcher::HTTPDownloadFile, 
+				this, link, filename, bCheckCompleted, bFlush));
+
 			m_HTTPService.run_one();
 		}
 
@@ -505,7 +563,9 @@ int CPatcher::HTTPDownloadFile(std::string link, std::string filename, bool bChe
 	return 1;
 }
 
-bool CPatcher::MTUnpackSingleArchiveFile(CArchiveFile* pArchive, boost::atomic_int32_t& result)
+bool CPatcher::MTUnpackSingleArchiveFile(
+	CArchiveFile* pArchive, 
+	boost::atomic_int32_t& result)
 {
 	if (m_bStop)
 	{
@@ -514,7 +574,9 @@ bool CPatcher::MTUnpackSingleArchiveFile(CArchiveFile* pArchive, boost::atomic_i
 
 	int32_t iResult = result;
 
-	if (iResult != kSuccess && iResult != kInsufficientMemory && iResult != kDeflateError)
+	if (iResult != kSuccess				&& 
+		iResult != kInsufficientMemory	&& 
+		iResult != kDeflateError)
 	{
 		return false;
 	}
@@ -528,7 +590,9 @@ bool CPatcher::MTUnpackSingleArchiveFile(CArchiveFile* pArchive, boost::atomic_i
 
 	if (iError == kDeltaDecodeError)
 	{
-		if (m_FileInfo.CheckSizeValid(pArchive->GetFilePath(), pArchive->GetRelativePath()))
+		if (m_FileInfo.CheckSizeValid(
+			pArchive->GetFilePath(), 
+			pArchive->GetRelativePath()))
 		{
 			iError = kSuccess;
 		}
@@ -538,23 +602,30 @@ bool CPatcher::MTUnpackSingleArchiveFile(CArchiveFile* pArchive, boost::atomic_i
 
 	if (iError != kSuccess && iError != kInsufficientMemory)
 	{
-		alert(m_Callback, "Error: " << ErrorMessage(iError) << " File: " << pArchive->GetRelativePath());
+		alert(m_Callback, 
+			"Error: " << ErrorMessage(iError) << 
+			" File: " << pArchive->GetRelativePath());
 		result = iError;
 		return false;
 	}
 
 	pArchive->SetUnpacked(true);
 
-	m_Callback.EnqueAlert(new TAFilePatch(pArchive->GetFilePath(), "Completed", pArchive->GetTrueSize()));
+	m_Callback.EnqueAlert(new TAFilePatch(
+		pArchive->GetFilePath(), "Completed", pArchive->GetTrueSize()));
 
 	return true;
 }
 
-bool CPatcher::MTUnpackArchiveFiles(boost::iterator_range<std::vector<CArchiveFile*>::iterator> archive, boost::atomic_int32_t & result)
+bool CPatcher::MTUnpackArchiveFiles(
+	boost::iterator_range<std::vector<CArchiveFile*>::iterator> archive, 
+	boost::atomic_int32_t & result)
 {
 	int32_t iResult = result;
 
-	if (iResult != kSuccess && iResult != kInsufficientMemory && iResult != kDeflateError)
+	if (iResult != kSuccess				&& 
+		iResult != kInsufficientMemory	&& 
+		iResult != kDeflateError)
 	{
 		return false;
 	}
@@ -571,7 +642,9 @@ bool CPatcher::MTUnpackArchiveFiles(boost::iterator_range<std::vector<CArchiveFi
 
 		if (iError == kDeltaDecodeError)
 		{
-			if (m_FileInfo.CheckSizeValid(pArchive->GetFilePath(), pArchive->GetRelativePath()))
+			if (m_FileInfo.CheckSizeValid(
+				pArchive->GetFilePath(), 
+				pArchive->GetRelativePath()))
 			{
 				iError = kSuccess;
 			}
@@ -581,14 +654,18 @@ bool CPatcher::MTUnpackArchiveFiles(boost::iterator_range<std::vector<CArchiveFi
 
 		if (iError != kSuccess)
 		{
-			alert(m_Callback, "Error: " << ErrorMessage(iError) << " File: " << pArchive->GetRelativePath());
+			alert(m_Callback, 
+				"Error: " << ErrorMessage(iError) <<
+				" File: " << pArchive->GetRelativePath());
+
 			result = iError;
 			return false;
 		}
 
 		pArchive->SetUnpacked(true);
 
-		m_Callback.EnqueAlert(new TAFilePatch(pArchive->GetFilePath(), "Completed", pArchive->GetTrueSize()));
+		m_Callback.EnqueAlert(new TAFilePatch(
+			pArchive->GetFilePath(), "Completed", pArchive->GetTrueSize()));
 	}
 
 	return true;
@@ -612,7 +689,9 @@ int CPatcher::UnpackArchiveFiles(std::vector<CArchiveFile*>& files)
 
 		if (iError == kDeltaDecodeError)
 		{
-			if (m_FileInfo.CheckSizeValid(pArchiveFile->GetFilePath(), pArchiveFile->GetRelativePath()))
+			if (m_FileInfo.CheckSizeValid(
+				pArchiveFile->GetFilePath(), 
+				pArchiveFile->GetRelativePath()))
 			{
 				iError = kSuccess;
 			}
@@ -622,13 +701,17 @@ int CPatcher::UnpackArchiveFiles(std::vector<CArchiveFile*>& files)
 
 		if (iError != kSuccess && iError != kInsufficientMemory)
 		{
-			alert(m_Callback, "Error: " << ErrorMessage(iError) << " File: " << pArchiveFile->GetRelativePath());
+			alert(m_Callback,
+				"Error: " << ErrorMessage(iError) << 
+				" File: " << pArchiveFile->GetRelativePath());
+
 			return iError;
 		}
 
 		pArchiveFile->SetUnpacked(true);
 
-		m_Callback.EnqueAlert(new TAFilePatch(pArchiveFile->GetFilePath(), "Completed", pArchiveFile->GetTrueSize()));
+		m_Callback.EnqueAlert(new TAFilePatch(
+			pArchiveFile->GetFilePath(), "Completed", pArchiveFile->GetTrueSize()));
 	}
 
 	return kSuccess;
@@ -646,14 +729,18 @@ inline int CPatcher::Patch(std::vector<CArchiveFile*>& files, CArchiveFile ** m_
 			for (size_t i = 0; i < files.size(); i += iThreadCount)
 			{
 				m_PatchService.Work(boost::bind(&CPatcher::MTUnpackArchiveFiles, this,
-					boost::make_iterator_range(files.begin() + i, files.begin() + i + std::min(iThreadCount, files.size() - i)), boost::ref(iResult)));
+					boost::make_iterator_range(
+						files.begin() + i,
+						files.begin() + i + std::min(iThreadCount, files.size() - i)), 
+						boost::ref(iResult)));
 			}
 		}
 		else
 		{
 			for (TArchiveFiles::iterator it = files.begin(); it != files.end(); ++it)
 			{
-				m_PatchService.Work(boost::bind(&CPatcher::MTUnpackSingleArchiveFile, this, *it, boost::ref(iResult)));
+				m_PatchService.Work(boost::bind(&CPatcher::MTUnpackSingleArchiveFile, 
+					this, *it, boost::ref(iResult)));
 			}
 		}
 
@@ -687,7 +774,10 @@ bool LoadUnpackedFileOffsets(std::set<size_t>& set, std::string file)
 	return true;
 }
 
-bool SaveUnpackedFileOffsets(CArchive& archive, std::set<size_t>& set, std::string file)
+bool SaveUnpackedFileOffsets(
+	CArchive& archive, 
+	std::set<size_t>& set, 
+	const std::string& file)
 {
 	std::ofstream fFileData(file + ".dat", std::ios::binary | std::ios::trunc);
 
@@ -714,7 +804,11 @@ bool SaveUnpackedFileOffsets(CArchive& archive, std::set<size_t>& set, std::stri
 	return true;
 }
 
-bool CPatcher::UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffsets, CArchive& archive, CArchiveFile* pFilePart)
+bool CPatcher::UnpackArchive(
+	const std::string& file, 
+	std::set<size_t>& sUnpackedOffsets, 
+	CArchive& archive, 
+	CArchiveFile* pFilePart)
 {
 	boost::atomic_int32_t iResult(kSuccess);
 	CArchiveFile* m_pVersionFile = NULL;
@@ -736,14 +830,19 @@ bool CPatcher::UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffset
 		{
 			if (iError == kInsufficientMemory)
 			{
-				alert(m_Callback, "Error: Not enough memory for single file: " 
-					<< archive.GetLastFileRequiredSize() << "b. Allocated: " << GetAllocationSize() << "b." << endl);
+				alert(m_Callback, 
+					"Error: Not enough memory for single file: " 
+					<< archive.GetLastFileRequiredSize() << "b. Allocated: " 
+					<< GetAllocationSize()				 << "b." << endl);
  
 				int32_t result = archive.UnpackNextArchiveFile(m_strClientPath, &sUnpackedOffsets, pFilePart);
 
 				if (result != kSuccess)
 				{
-					alert(m_Callback, "Error: Impossible to unpack with current memory availability: " << ErrorMessage(result));
+					alert(m_Callback, 
+						"Error: Impossible to unpack with current memory availability: " 
+						<< ErrorMessage(result));
+
 					return false;
 				}
 
@@ -764,7 +863,9 @@ bool CPatcher::UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffset
 			files.Sort();
 		}
 
-		alert(m_Callback, "Info: Could not allocate more memory. Trying to unpack " << files.size() << " files." << endl);
+		alert(m_Callback, 
+			"Info: Could not allocate more memory. "
+			"Trying to unpack " << files.size() << " files." << endl);
 
 		int32_t iResult = Patch(files, &m_pVersionFile);
 
@@ -780,7 +881,10 @@ bool CPatcher::UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffset
 
 		if (iResult != kSuccess)
 		{
-			alert(m_Callback, "Error: Could not unpack archive: " << file << ". Error: " << ErrorMessage(iResult) << endl);
+			alert(m_Callback, 
+				"Error: Could not unpack archive: " << file << ". "
+				"Error: " << ErrorMessage(iResult) << endl);
+
 			return false;
 		}
 
@@ -789,7 +893,10 @@ bool CPatcher::UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffset
 
 	if (iError != kInsufficientMemory && iError != kSuccess && iError != kFilePart)
 	{
-		alert(m_Callback, "Error: Could not load archive: " << file << ". Error: " << ErrorMessage(iError) << endl);
+		alert(m_Callback, 
+			"Error: Could not load archive: " << file << ". "
+			"Error: " << ErrorMessage(iError) << endl);
+
 		return false;
 	}
 
@@ -850,7 +957,8 @@ bool CPatcher::UpdateToLatest()
 	int32_t iError = kSuccess;
 
 	std::vector<int> vReleasesNeeded;
-	if (!m_Manifest.GetReleasesToDownloadFor(m_iMyVersion, m_Manifest.GetLatestVersion(), vReleasesNeeded))
+	if (!m_Manifest.GetReleasesToDownloadFor(m_iMyVersion, 
+		m_Manifest.GetLatestVersion(), vReleasesNeeded))
 	{
 		fatal(m_Callback, "Error: " << m_Manifest.LastError());
 		return false;
@@ -876,7 +984,9 @@ bool CPatcher::UpdateToLatest()
 
 		if (sMetaPath.empty())
 		{
-			fatal(m_Callback,"Error: Empty meta path for release: " << *it << endl);
+			fatal(m_Callback,
+				"Error: Empty meta path for release: " << *it << endl);
+
 			return false;
 		}
 
@@ -884,7 +994,10 @@ bool CPatcher::UpdateToLatest()
 
 		if (!HTTPDownloadFile(sMetaPath, sPackage, true, false))
 		{
-			fatal(m_Callback,"Error: HTTP download filed for metafile from: " << sMetaPath << endl);
+			fatal(m_Callback,
+				"Error: HTTP download filed for metafile from: " 
+				<< sMetaPath << endl);
+
 			return false;
 		}
 
@@ -894,13 +1007,19 @@ bool CPatcher::UpdateToLatest()
 
 		if ((iError = archive.LoadArchive(sPackage.c_str())) != kSuccess)
 		{
-			fatal(m_Callback,"Error: Unable not load metafile: " << ": " << ErrorMessage(iError) << endl);
+			fatal(m_Callback,
+				"Error: Unable not load metafile: " << ": " 
+				<< ErrorMessage(iError) << endl);
+
 			return false;
 		}
 
 		if ((iError = archive.DecompressAll()) != kSuccess)
 		{
-			fatal(m_Callback,"Error: Unable not decompress metafile: " << sPackage << ": " << ErrorMessage(iError) << endl);
+			fatal(m_Callback,
+				"Error: Unable not decompress metafile: " 
+				<< sPackage << ": " << ErrorMessage(iError) << endl);
+
 			return false;
 		}
 
@@ -916,7 +1035,8 @@ bool CPatcher::UpdateToLatest()
 
 		CTorrentData torrentData;
 
-		if (!torrentData.DecodeMetadata(P(&files[0]->GetDecompressedData()[0]), files[0]->GetDecompressedData().size()))
+		if (!torrentData.DecodeMetadata(P(&files[0]->GetDecompressedData()[0]), 
+			files[0]->GetDecompressedData().size()))
 		{
 			fatal(m_Callback,"Error: Unable to BDecode metadata." << endl);
 			return false;
@@ -926,7 +1046,8 @@ bool CPatcher::UpdateToLatest()
 
 		TFiles torrentFiles = torrentData.GetFileStorage();
 		{
-			std::rotate(torrentFiles.begin(), torrentFiles.begin() + torrentFiles.size() - 1, torrentFiles.begin() + torrentFiles.size());
+			std::rotate(torrentFiles.begin(), torrentFiles.begin() + torrentFiles.size() - 1, 
+				torrentFiles.begin() + torrentFiles.size());
 		}
 
 		for (TFiles::iterator it = torrentFiles.begin(); it != torrentFiles.end(); ++it)
@@ -952,7 +1073,8 @@ bool CPatcher::UpdateToLatest()
 				continue;
 			}
 
-			std::string sUrl = "http://" + m_strDownloadClient + sFile.substr(0, iPos) + "/" + sFile;
+			std::string sUrl = "http://" + m_strDownloadClient + 
+				sFile.substr(0, iPos) + "/" + sFile;
 
 			int iResult = 0;
 
@@ -1012,9 +1134,11 @@ bool CPatcher::UpdateToLatest()
 
 			if (CArchive::IsMainFile(it->name.c_str()))
 			{
-				m_Callback.EnqueStaticAlert(new TAFilePatchBegin(archive.GetArchiveDirectoryFiles().size()));
+				m_Callback.EnqueStaticAlert(
+					new TAFilePatchBegin(archive.GetArchiveDirectoryFiles().size()));
 
-				CArchiveDirectoryFile* pInfoFileDirectory = archive.GetArchiveDirectoryFileByName("pgc_v2.version", false);
+				CArchiveDirectoryFile* pInfoFileDirectory = 
+					archive.GetArchiveDirectoryFileByName("pgc_v2.version", false);
 
 				if (pInfoFileDirectory)
 				{
@@ -1026,7 +1150,10 @@ bool CPatcher::UpdateToLatest()
 				}
 				else
 				{
-					alert(m_Callback, "Error: Corrupted archive. No pgc_v2.version found in archive." << endl);
+					alert(m_Callback, 
+						"Error: Corrupted archive. "
+						"No pgc_v2.version found in archive." << endl);
+
 					return false;
 				}
 			}
@@ -1119,17 +1246,20 @@ bool CPatcher::HTTPDownloadManifest(std::string link)
 
 		if ((iError = archive.LoadArchive(strManifestPath.c_str())) != kSuccess)
 		{
-			alert(m_Callback,"Could not open manifest file as archive: " << ErrorMessage(iError) << endl);
+			alert(m_Callback,
+				"Could not open manifest file as archive: " << ErrorMessage(iError) << endl);
 			return false;
 		}
 
 		if ((iError = archive.DecompressAll()) != kSuccess)
 		{
-			alert(m_Callback,"Could not decompress manifest file: " << ErrorMessage(iError) << endl);
+			alert(m_Callback,
+				"Could not decompress manifest file: " << ErrorMessage(iError) << endl);
 			return false;
 		}
 
-		if (!m_Manifest.LoadManifestFile(P(archive.GetArchiveFiles()[0]->GetDecompressedData().data()), 
+		if (!m_Manifest.LoadManifestFile(
+			P(archive.GetArchiveFiles()[0]->GetDecompressedData().data()), 
 			archive.GetArchiveFiles()[0]->GetDecompressedData().size()))
 		{
 			alert(m_Callback,"Could not parse manifest file." << endl);
@@ -1146,11 +1276,14 @@ bool CPatcher::ReadConfiguration()
 {
 	boost::filesystem::path pCurrent = boost::filesystem::current_path();
 
-	pCurrent += "\\config\\patcher.ini";
+	pCurrent += "\\";
+	pCurrent += PATCHER_CONFIG_PATH;
 
 	if (!boost::filesystem::exists(pCurrent))
 	{
-		alert(m_Callback,"Error: Could not find patcher.ini: \\config\\patcher.ini" << endl);
+		alert(m_Callback,
+			"Error: Could not find patcher.ini: \\config\\patcher.ini" << endl);
+
 		return false;
 	}
 
@@ -1162,149 +1295,76 @@ bool CPatcher::ReadConfiguration()
 		return false;
 	}
 
-	for (std::string line; std::getline(ifConfig, line); )
+	if (!m_Config)
 	{
-		boost::trim(line);
+		m_Config = new CInitializationDocument();
+	}
 
-		if (boost::starts_with(line, "buffersize"))
+	if (!m_Config->ParseIni(ifConfig))
+	{
+		alert(m_Callback, "Error: Failed to parse patcher.ini" << endl);
+		return false;
+	}
+
+	CPairNode* pNode;
+
+	if (!!(pNode = m_Config->GetNode("buffersize")))
+	{
+		m_DownloadBufferSize = pNode->GetValue<uint32_t>();
+	}
+
+	if (!!(pNode = m_Config->GetNode("tera_game_path")))
+	{
+		m_strGamePath = pNode->GetValue();
+
+		if (!boost::filesystem::exists(m_strGamePath) ||
+			!boost::filesystem::is_directory(m_strGamePath))
 		{
-			size_t iPos = line.find_last_of("=");
-
-			if(iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_DownloadBufferSize = Cast<uint32_t>(line.substr(iPos + 1));
-
-				if (m_DownloadBufferSize < 1024)
-				{
-					alert(m_Callback,"Error: Download buffer size may not be less than 1 kB" << endl);
-					return false;
-				}
-			}
-			else
-			{
-				alert(m_Callback,"Error: No download buffer size found" << endl);
-				return false;
-			}
+			alert(m_Callback, "Error: Game path does not exist: " << m_strGamePath << endl);
+			return false;
 		}
-		else if (boost::starts_with(line, "tera_game_path"))
+
+		m_strClientPath = m_strGamePath + "\\Client";
+	}
+
+	if (!!(pNode = m_Config->GetNode("download_host_url")))
+	{
+		m_strDownloadHost = pNode->GetValue();
+	}
+
+	if (!!(pNode = m_Config->GetNode("download_client_url")))
+	{
+		m_strDownloadClient = pNode->GetValue();
+	}
+
+	if (!!(pNode = m_Config->GetNode("download_manifest_url")))
+	{
+		m_strDownloadManifest = pNode->GetValue();
+	}
+
+	if (!!(pNode = m_Config->GetNode("temp_file_path")))
+	{
+		m_strTempPath = pNode->GetValue();
+	}
+
+	if (!!(pNode = m_Config->GetNode("worker_thread_count")))
+	{
+		if (!m_PatchService.SetupPatchThreads(pNode->GetValue<int>()))
 		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_strGamePath = line.substr(iPos + 1);
-
-				if (!boost::filesystem::exists(m_strGamePath))
-				{
-					alert(m_Callback,"Error: Could not find game path" << endl);
-					return false;
-				}
-
-				m_strClientPath = m_strGamePath + "\\Client";
-			}
-			else
-			{
-				alert(m_Callback,"Error: No game path given" << endl);
-				return false;
-			}
+			alert(m_Callback, "Error: Failed to create patch service threads" << endl);
 		}
-		else if (boost::starts_with(line, "download_host_url"))
+	}
+
+	if (!!(pNode = m_Config->GetNode("memory_usage")))
+	{
+		size_t iLimit = pNode->GetValue<size_t>();
+
+		if (iLimit < GIGABYTE)
 		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_strDownloadHost = line.substr(iPos + 1);
-			}
-			else
-			{
-				alert(m_Callback, "Error: Invalid download host url" << endl);
-				return false;
-			}
+			iLimit = GIGABYTE;
 		}
-		else if (boost::starts_with(line, "download_client_url"))
-		{
-			size_t iPos = line.find_last_of("=");
 
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_strDownloadClient = line.substr(iPos + 1);
-			}
-			else
-			{
-				alert(m_Callback, "Error: Invalid download client url" << endl);
-				return false;
-			}
-		}
-		else if (boost::starts_with(line, "download_manifest_url"))
-		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_strDownloadManifest = line.substr(iPos + 1);
-			}
-			else
-			{
-				alert(m_Callback, "Error: Invalid download manifest url" << endl);
-				return false;
-			}
-		}
-		else if (boost::starts_with(line, "temp_file_path"))
-		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_strTempPath = line.substr(iPos + 1);
-
-				if (!boost::filesystem::exists(m_strTempPath))
-				{
-					try
-					{
-						if (!boost::filesystem::create_directories(m_strTempPath))
-						{
-							alert(m_Callback,"Error: Unable to create temp file directory" << endl);
-							return false;
-						}
-					}
-					catch (const boost::system::error_code& ec)
-					{
-						alert(m_Callback, "Error: Unable to create temp file directory: " << ec.message() << endl);
-						return false;
-					}
-				}
-			}
-			else
-			{
-				alert(m_Callback,"Error: No temp file path given" << endl);
-				return false;
-			}
-		}
-		else if(boost::starts_with(line, "worker_thread_count"))
-		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				m_PatchService.SetupPatchThreads(Cast<int>(line.substr(iPos + 1)));
-			}
-		}
-		else if (boost::starts_with(line, "memory_usage"))
-		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				SetAllocationLimit(Cast<size_t>(line.substr(iPos + 1)));
-			}
-
-			if (GetAllocationLimit() < GIGABYTE)
-			{
-				alert(m_Callback, "Error: Allocation limit must not be less than 1 Gb" << endl);
-				return false;
-			}
-		}
+		SetAllocationLimit(iLimit);
 	}
 
 	if (m_DownloadBufferSize == 0)
@@ -1333,7 +1393,10 @@ bool CPatcher::ReadConfiguration()
 
 	if (m_strGamePath.empty() || !boost::filesystem::exists(m_strGamePath))
 	{
-		alert(m_Callback,"Info: Invalid or no game path in config file (game_path). Choosing current directory as game path" << endl);
+		alert(m_Callback,
+			"Info: Invalid or no game path in config file (game_path). "
+			"Choosing current directory as game path" << endl);
+
 		m_strGamePath = boost::filesystem::current_path().string();
 
 		if (!boost::filesystem::exists(m_strGamePath))
@@ -1345,7 +1408,10 @@ bool CPatcher::ReadConfiguration()
 
 	if (m_strTempPath.empty() || !boost::filesystem::exists(m_strTempPath))
 	{
-		alert(m_Callback,"Info: Invalid or no temp path in config file. Choosing \temp as temp path" << endl);
+		alert(m_Callback,
+			"Info: Invalid or no temp path in config file. "
+			"Choosing \temp as temp path" << endl);
+
 		m_strTempPath = boost::filesystem::current_path().string() + "\\temp";
 
 		if (!boost::filesystem::exists(m_strTempPath))
@@ -1361,7 +1427,10 @@ bool CPatcher::ReadConfiguration()
 
 	if (!m_DownloadBuffer)
 	{
-		alert(m_Callback, "Error: Could not allocate " << m_DownloadBufferSize << " bytes for download buffer" << endl);
+		alert(m_Callback, 
+			"Error: Could not allocate " << m_DownloadBufferSize << " "
+			"bytes for download buffer" << endl);
+
 		return false;
 	}
 
@@ -1381,7 +1450,9 @@ bool CPatcher::GetCurrentVersion()
 
 	if (!boost::filesystem::exists(pVersion))
 	{
-		alert(m_Callback,"Warning: Could not find version file. Expecting a new client" << endl);
+		alert(m_Callback,
+			"Warning: Could not find version file. Expecting a new client" << endl);
+
 		return true;
 	}
 

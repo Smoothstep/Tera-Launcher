@@ -9,13 +9,16 @@
 
 #include "Handler.h"
 
+#define LOGIN_HTML "file:///config/login.html"
+
 class CCefV8Handler : public CefV8Handler
 {
 private:
 	IMPLEMENT_REFCOUNTING(CCefV8Handler);
 
 public:
-	virtual bool Execute(const CefString& name,
+	virtual bool Execute(
+		const CefString& name,
 		CefRefPtr<CefV8Value> object,
 		const CefV8ValueList& arguments,
 		CefRefPtr<CefV8Value>& retval,
@@ -44,6 +47,11 @@ public:
 		return this;
 	}
 
+	virtual CefRefPtr<CefBrowser> GetBrowser()
+	{
+		return m_MainBrowser;
+	}
+
 	virtual bool OnProcessMessageReceived(
 		CefRefPtr<CefBrowser> browser,
 		CefProcessId source_process,
@@ -51,12 +59,10 @@ public:
 
 	virtual void OnWebKitInitialized() OVERRIDE;
 	virtual void OnContextInitialized() OVERRIDE;
-	virtual void OnContextCreated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefV8Context> context) OVERRIDE;
-
-	CefRefPtr<CefBrowser> GetBrowser()
-	{
-		return m_MainBrowser;
-	}
+	virtual void OnContextCreated(
+		CefRefPtr<CefBrowser> browser, 
+		CefRefPtr<CefFrame> frame, 
+		CefRefPtr<CefV8Context> context) OVERRIDE;
 };
 
 static void DoCefShutdown()
@@ -68,8 +74,11 @@ static void DoCefShutdown()
 
 	CefQuitMessageLoop();
 
-	CCefHandler::GetInstance()->Close();
-	CCefHandler::GetInstance()->GetRequestHandler()->Release();
+	if (CEF)
+	{
+		CEF->Close();
+		CEF->GetRequestHandler()->Release();
+	}
 
 	CefShutdown();
 }
@@ -107,14 +116,14 @@ static int CefInit(HINSTANCE hInstance, CefRefPtr<CCefApp> pHandler)
 #if !defined(CEF_USE_SANDBOX)
 	settings.no_sandbox = true;
 
-	std::string szDir = boost::filesystem::current_path().generic_string();
+	std::string strDir = boost::filesystem::current_path().generic_string();
 
 #ifdef CACHE_COOKIES
-	CefString(&settings.cache_path)				= std::string(szDir) + "/config/cookies";
+	CefString(&settings.cache_path)				= strDir + "/config/cookies";
 #endif
-	CefString(&settings.resources_dir_path)		= std::string(szDir) + "/config/bin";
-	CefString(&settings.user_data_path)			= std::string(szDir) + "/config/bin";
-	CefString(&settings.locales_dir_path)		= std::string(szDir) + "/config/bin/locales";
+	CefString(&settings.resources_dir_path)		= strDir + "/config/bin";
+	CefString(&settings.user_data_path)			= strDir + "/config/bin";
+	CefString(&settings.locales_dir_path)		= strDir + "/config/bin/locales";
 
 #endif
 

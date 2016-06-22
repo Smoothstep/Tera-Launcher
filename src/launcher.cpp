@@ -27,9 +27,8 @@
 
 #include "launcher.h"
 #include "resource.h"
+#include "config.h"
 #include "log.h"
-
-static bool g_bLogOnConsole = false;
 
 CefRefPtr<CLauncher> g_pLauncher = NULL;
 
@@ -48,6 +47,7 @@ BOOL CALLBACK API_EW_FIND_CALLBACK(HWND hWnd, LPARAM lParam)
 	}
 
 	static DWORD dwProcessId;
+
 	if (GetWindowThreadProcessId(hWnd, &dwProcessId) == 0)
 	{
 		return true;
@@ -157,7 +157,7 @@ void RunLauncher()
 	g_pLauncher->RunMessageLoop();
 }
 
-bool ValidAccount(std::string strResult)
+bool ValidAccount(const std::string& strResult)
 {
 	std::stringstream stream(strResult);
 
@@ -204,11 +204,6 @@ bool ValidAccount(std::string strResult)
 	return true;
 }
 
-void ConosleRecordMessages()
-{
-	g_bLogOnConsole = true;
-}
-
 CTLauncher::CTLauncher() : 
 	m_MainHWnd(NULL), 
 	m_TLHWnd(NULL), 
@@ -218,14 +213,15 @@ CTLauncher::CTLauncher() :
 	m_bStopMessageLoop(false), 
 	m_bLaunched(false),
 	m_dwMsgCount(0),
-	m_dwStage(ID_UNKNOWN)
+	m_dwStage(ID_UNKNOWN),
+	m_Config(NULL)
 {
 	memset(&m_pInfo,		0, sizeof(PROCESS_INFORMATION));
 	memset(m_szMsgBuffer,	0, MESSAGE_BUF_SIZE);
 	memset(&m_CopyData,		0, sizeof(COPYDATASTRUCT));
 
-	wcscpy_s(m_szTitle, 100 - 1, TEXT("```````d```!````````"));
-	wcscpy_s(m_szClass, 100 - 1, TEXT("EME.LauncherWnd"));
+	wcscpy_s(m_szTitle, MAX_WND_NAME_LEN - 1, TEXT(EME_WINDOW_TITLE));
+	wcscpy_s(m_szClass, MAX_WND_NAME_LEN - 1, TEXT(EME_WINDOW_CLASS_NAME));
 }
 
 CTLauncher::~CTLauncher()
@@ -241,23 +237,22 @@ CTLauncher::~CTLauncher()
 		delete m_MessageThread;
 		m_MessageThread = NULL;
 	}
-}
 
-void CTLauncher::OnLogin()
-{
-}
-
-void CTLauncher::OnLogout()
-{
+	if (m_Config)
+	{
+		delete m_Config;
+		m_Config = NULL;
+	}
 }
 
 void CTLauncher::OnEndPopup()
 {
 	m_bLaunched = false;
+	m_dwMsgCount = 0;
 
-	if (!g_pLauncher->RequestAccountInfo())
+	if (!GetAccountInfo())
 	{
-		TRACEN("Unable to retrieve account info. Logging out.");
+		TRACEN("Unable to retrieve account info - Logging out.");
 
 		CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("Logout");
 
@@ -268,9 +263,7 @@ void CTLauncher::OnEndPopup()
 	}
 }
 
-typedef boost::optional<boost::property_tree::basic_ptree<std::string, std::string, std::less<std::string> >& > optional_pt;
-
-bool CTLauncher::SetAccountData(std::string strAccountData)
+bool CTLauncher::SetAccountData(const std::string& strAccountData)
 {
 	std::stringstream stream(strAccountData);
 
@@ -382,18 +375,87 @@ bool CTLauncher::SetAccountData(std::string strAccountData)
 
 	if (m_bLaunched)
 	{
-		SendTicket();
+		if (m_dwMsgCount >= ID_TICKET)
+		{
+			SendTicket();
+		}
+	}
+	else
+	{
+		if (m_dwMsgCount >= ID_GAME_STR)
+		{
+			SendAccountList();
+		}
 	}
 
 	return true;
 }
 
-void CTLauncher::SetServerList(std::string strServerList)
+bool CTLauncher::IndicateTLPath(const std::string & strPath)
 {
-	m_strServerList = strServerList;
+	SetLauncherPath(strPath);
+
+	if (!m_Config)
+	{
+		if (!ReadConfiguration())
+		{
+			return false;
+		}
+	}
+
+	m_Config->ChangeNode("tl_path", strPath.c_str());
+
+	if (!m_Config->WriteIni((boost::filesystem::current_path().string() + "\\" + LAUNCHER_CONFIG_PATH).c_str()))
+	{
+		TRACEN("Failed to set TL.exe path");
+		return false;
+	}
+
+	return true;
 }
 
-void CTLauncher::SetLauncherPath(std::string strPath)
+bool CTLauncher::IndicateSLURL(const std::string & slsUrl)
+{
+	if (!SetServerList(slsUrl))
+	{
+		return false;
+	}
+
+	if (!m_Config)
+	{
+		if (!ReadConfiguration())
+		{
+			return false;
+		}
+	}
+
+	m_Config->ChangeNode("serverlist_url", slsUrl.c_str());
+
+	if (!m_Config->WriteIni((boost::filesystem::current_path().string() + "\\" + LAUNCHER_CONFIG_PATH).c_str()))
+	{
+		TRACEN("Failed to set serverlist url");
+		return false;
+	}
+
+	return true;
+}
+
+bool CTLauncher::SetServerList(const std::string& strServerList)
+{
+	if (!	boost::regex_match(strServerList,
+			boost::regex("(\b(https?|ftp|file)://)?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]",
+			boost::regex::extended)))
+	{
+		TRACEN("Invalid Serverlist url: %s", strServerList.c_str());
+		return false;
+	}
+
+	m_strServerList = strServerList;
+
+	return true;
+}
+
+void CTLauncher::SetLauncherPath(const std::string& strPath)
 {
 	m_strTLPath = strPath;
 }
@@ -430,7 +492,7 @@ void CTLauncher::RunMessageLoop()
 				break;
 
 			case ID_TICKET:
-				if (!g_pLauncher->RequestAccountInfo())
+				if (!GetAccountInfo())
 				{
 					TRACEN("Unable to retrieve account info.");
 				}
@@ -479,7 +541,7 @@ void CTLauncher::RunMessageLoop()
 			break;
 
 		case ID_TICKET:
-			if (!g_pLauncher->RequestAccountInfo())
+			if (!GetAccountInfo())
 			{
 				TRACEN("Unable to retrieve account info.");
 			}
@@ -497,13 +559,31 @@ void CTLauncher::RunMessageLoop()
 		case ID_END_POPUP:
 			OnEndPopup();
 			break;
-		}
+			}
 
 		m_dwStage = -1;
 #endif
 	}
 
 	Shutdown();
+}
+
+std::string & CTLauncher::GetAccountData()
+{
+	return m_strAccountData;
+}
+
+std::string & CTLauncher::GetServerList()
+{
+	if (m_strServerList.empty())
+	{
+		if (!ReadConfiguration())
+		{
+			TRACEN("Failed to read configureation");
+		}
+	}
+
+	return m_strServerList;
 }
 
 bool CTLauncher::Launch(HINSTANCE hInstance)
@@ -596,11 +676,12 @@ bool CTLauncher::ReadConfiguration()
 {
 	boost::filesystem::path pCurrent = boost::filesystem::current_path();
 
-	pCurrent += "\\config\\launcher.ini";
+	pCurrent += "\\";
+	pCurrent += LAUNCHER_CONFIG_PATH;
 
 	if (!boost::filesystem::exists(pCurrent))
 	{
-		TRACEN("Unable to find launcher.ini");
+		TRACEN("Unable to find " LAUNCHER_CONFIG_PATH);
 		return false;
 	}
 
@@ -608,41 +689,34 @@ bool CTLauncher::ReadConfiguration()
 
 	if (!ifConfig.is_open())
 	{
-		TRACEN("Unable to open launcher.ini");
+		TRACEN("Unable to open " LAUNCHER_CONFIG_PATH);
 		return false;
 	}
 
-	for (std::string line; std::getline(ifConfig, line); )
+	if (!m_Config)
 	{
-		boost::trim(line);
+		m_Config = new CInitializationDocument();
+	}
 
-		if (boost::starts_with(line, "tl_path"))
+	if (!m_Config->ParseIni(ifConfig))
+	{
+		TRACE("Invalid config: %s", pCurrent.string().c_str());
+		return false;
+	}
+
+	CPairNode* pNode;
+
+	if (!!(pNode = m_Config->GetNode("tl_path")))
+	{
+		SetLauncherPath(pNode->GetValue());
+	}
+
+	if (!!(pNode = m_Config->GetNode("serverlist_url")))
+	{
+		if (!SetServerList(pNode->GetValue()))
 		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				SetLauncherPath(line.substr(iPos + 1));
-			}
-			else
-			{
-				TRACEN("Unable to parse tl_path");
-				return false;
-			}
-		}
-		else if (boost::starts_with(line, "serverlist_url"))
-		{
-			size_t iPos = line.find_last_of("=");
-
-			if (iPos != line.npos && line.size() > iPos + 1)
-			{
-				SetServerList(line.substr(iPos + 1));
-			}
-			else
-			{
-				TRACEN("Unable to parse serverlist_url");
-				return false;
-			}
+			TRACEN("Invalid serverlist url: %s", pNode->GetValue());
+			return false;
 		}
 	}
 
@@ -659,11 +733,6 @@ bool CTLauncher::ReadConfiguration()
 	}
 
 	return true;
-}
-
-void CTLauncher::SetStage(DWORD dwStage)
-{
-	m_dwStage = dwStage;
 }
 
 ATOM CTLauncher::ARegisterClass(HINSTANCE hInstance)
@@ -789,7 +858,7 @@ void CTLauncher::SendHello()
 	{
 		m_strAccountData = "";
 
-		if (!g_pLauncher->RequestAccountInfo())
+		if (!GetAccountInfo())
 		{
 			TRACEN("Cannot request account data.");
 			return;
@@ -935,9 +1004,15 @@ void CTLauncher::SendServerList()
 		return;
 	}
 
-	if (m_strServerList.length() >= 1024)
+	if (m_strServerList.length() >= MESSAGE_BUF_SIZE)
 	{
 		TRACEN("CopyData too big for buffer.");
+		return;
+	}
+
+	if (m_strServerList.empty())
+	{
+		TRACEN("Empty server list.");
 		return;
 	}
 
@@ -977,9 +1052,15 @@ void CTLauncher::SendAccountList()
 		return;
 	}
 
-	if (m_strAccountData.length() >= 1024)
+	if (m_strAccountData.length() >= MESSAGE_BUF_SIZE)
 	{
 		TRACEN("CopyData too big for buffer.");
+		return;
+	}
+
+	if (m_strAccountData.empty())
+	{
+		TRACEN("Empty account data.");
 		return;
 	}
 
@@ -1021,7 +1102,19 @@ void CTLauncher::SendTicket()
 		return;
 	}
 
-	memset(m_szMsgBuffer, 0, 1024);
+	if (m_strAccountData.length() >= MESSAGE_BUF_SIZE)
+	{
+		TRACEN("CopyData too big for buffer.");
+		return;
+	}
+
+	if (m_strAccountData.empty())
+	{
+		TRACEN("Empty account data.");
+		return;
+	}
+
+	memset(m_szMsgBuffer, 0, MESSAGE_BUF_SIZE);
 	memcpy(m_szMsgBuffer, m_strAccountData.c_str(), m_strAccountData.size());
 
 	m_CopyData.cbData = m_strAccountData.size();
@@ -1076,7 +1169,7 @@ std::string GameEventType(std::string str)
 	return boost::regex_replace(str, boost::regex("[^0-9]*([0-9]+).*"), "\\1");
 }
 
-int GetIdent(LPVOID lpData)
+int GetIdent(const LPVOID lpData)
 {
 	const char* szMessage = reinterpret_cast<const char*>(lpData);
 
@@ -1105,7 +1198,7 @@ int GetIdent(LPVOID lpData)
 		return CTLauncher::ID_TICKET;
 	}
 
-	if (!memcmp(lpData, "endPopup(0)", strlen("endPopup(0)")))
+	if (!memcmp(lpData, "endPopup", strlen("endPopup")))
 	{
 		return CTLauncher::ID_END_POPUP;
 	}
@@ -1138,6 +1231,13 @@ LRESULT CTLauncher::ProcessClassMessages(HWND hwnd, UINT message, WPARAM wParam,
 		if (!CTL->m_TLHWnd)
 		{
 			CTL->m_TLHWnd = reinterpret_cast<HWND>(wParam);
+		}
+
+		if (copyData.lpData)
+		{
+			TRACEN("New message from TL.exe: %s", std::string(
+				reinterpret_cast<const char*>(copyData.lpData),
+				reinterpret_cast<const char*>(copyData.lpData) + copyData.cbData).c_str());
 		}
 
 		switch (GetIdent(copyData.lpData))
@@ -1224,14 +1324,18 @@ LRESULT CTLauncher::ProcessClassMessages(HWND hwnd, UINT message, WPARAM wParam,
 void PatchThread(CPatcher* pPatcher)
 {
 	pPatcher->UpdateToLatest();
-	delete pPatcher;
 }
 
-CLauncher::CLauncher(HINSTANCE hInstance)
+CLauncher::CLauncher(HINSTANCE hInstance) :
+	m_paCurrentSize(0),
+	m_paRequiredSize(0),
+	m_paCurrentUnpackedFileCount(0),
+	m_paRequiredUnpackedFileCount(0)
 {
 #ifdef CEF_CHILD
 	Launcher_RegisterClass(hInstance);
 #endif
+	m_pPatcher = new CPatcher(boost::ref(m_PatchCallback));
 }
 
 CLauncher::~CLauncher()
@@ -1411,10 +1515,10 @@ bool CLauncher::PausePatch()
 
 	m_pPatcher->Stop();
 
-	m_paCurrentUnpackedFileCount = 0;
-	m_paRequiredUnpackedFileCount = 0;
 	m_paCurrentSize = 0;
 	m_paRequiredSize = 0;
+	m_paCurrentUnpackedFileCount = 0;
+	m_paRequiredUnpackedFileCount = 0;
 
 	m_PatchCallback.ClearAll();
 
@@ -1436,19 +1540,32 @@ bool CLauncher::ResumePatch()
 	return Patch();
 }
 
-bool CLauncher::RequestAccountInfo()
+bool CLauncher::IndicateGameDirectory(const std::string & strDirectory)
 {
-	if (!CEF)
+	if (!m_pPatcher)
 	{
 		return false;
 	}
 
-	if (!CEF->Browser())
+	boost::system::error_code error;
+
+	if (!boost::filesystem::exists(strDirectory, error))
 	{
+		TRACEN("Invalid TERA path: %s", strDirectory.c_str());
 		return false;
 	}
 
-	CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("AccountInfo");
+	if (error)
+	{
+		TRACEN("Invalid TERA path: %s. Error: %s", strDirectory.c_str(), error.message().c_str());
+		return false;
+	}
 
-	return CEF->Browser()->SendProcessMessage(PID_RENDERER, msg);
+	if (!m_pPatcher->SetupPath(strDirectory))
+	{
+		TRACEN("Setting game path to %s failed.", strDirectory.c_str());
+		return false;
+	}
+
+	return true;
 }

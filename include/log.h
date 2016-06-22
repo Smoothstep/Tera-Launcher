@@ -27,7 +27,7 @@
 LOG_TIME(stderr);						\
 {										\
 	fprintf(LOG_FILE, __VA_ARGS__);		\
-	fprintf(LOG_FILE, "\n");				\
+	fprintf(LOG_FILE, "\n");			\
 }										\
 
 #define TRACE(...)						\

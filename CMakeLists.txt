@@ -21,6 +21,7 @@ set(headers
 	allocation
 	bdecode
 	cef
+	config
 	crypt
 	error_codes
 	extension
@@ -29,13 +30,13 @@ set(headers
 	launcher
 	log
 	mapped_file
+	parser
 	patcher
 	patcher_callback
 	patcher_service
 	resource
 	tera_zip_format
 	torrent
-	xml
 	xml_manifest_parser
 	utils/pool
 	utils/pool_win

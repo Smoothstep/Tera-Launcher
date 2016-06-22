@@ -19,7 +19,7 @@ CFileInfo::~CFileInfo()
 {
 }
 
-bool CFileInfo::CheckSHA1Valid(std::string strFile, std::string strFileRelative)
+bool CFileInfo::CheckSHA1Valid(const std::string &strFile, const std::string &strFileRelative)
 {
 	boost::iostreams::mapped_file file(strFile, boost::iostreams::mapped_file::readonly);
 
@@ -29,7 +29,7 @@ bool CFileInfo::CheckSHA1Valid(std::string strFile, std::string strFileRelative)
 		return false;
 	}
 
-	CXMLNode* pFilesNode = m_XMLDocument.Node()->GetNode("Files");
+	CPairNode* pFilesNode = m_XMLDocument.Node()->GetNode("Files");
 
 	if (!pFilesNode)
 	{
@@ -37,8 +37,8 @@ bool CFileInfo::CheckSHA1Valid(std::string strFile, std::string strFileRelative)
 		return false;
 	}
 
-	CXMLNode* pFileNode = (*pFilesNode)[m_mPathOffsets[strFile]];
-	CXMLNode* pSHANode = pFileNode->GetNode("SHA1");
+	CPairNode* pFileNode = (*pFilesNode)[m_mPathOffsets[strFile]];
+	CPairNode* pSHANode = pFileNode->GetNode("SHA1");
 
 	if (!pSHANode)
 	{
@@ -85,7 +85,7 @@ bool CFileInfo::CheckSHA1Valid(std::string strFile, std::string strFileRelative)
 	return paramFileHash.str() == strFileSHA;
 }
 
-bool CFileInfo::CheckSizeValid(std::string strFile, std::string strFileRelative)
+bool CFileInfo::CheckSizeValid(const std::string &strFile, const std::string &strFileRelative)
 {
 	std::ifstream file(strFile, std::ios::in | std::ios::binary);
 
@@ -95,7 +95,7 @@ bool CFileInfo::CheckSizeValid(std::string strFile, std::string strFileRelative)
 		return false;
 	}
 
-	CXMLNode* pFilesNode = m_XMLDocument.Node()->GetNode("Files");
+	CPairNode* pFilesNode = m_XMLDocument.Node()->GetNode("Files");
 
 	if (!pFilesNode)
 	{
@@ -111,8 +111,8 @@ bool CFileInfo::CheckSizeValid(std::string strFile, std::string strFileRelative)
 		return false;
 	}
 
-	CXMLNode* pFileNode = (*pFilesNode)[it->second];
-	CXMLNode* pSizeNode = pFileNode->GetNode("Size");
+	CPairNode* pFileNode = (*pFilesNode)[it->second];
+	CPairNode* pSizeNode = pFileNode->GetNode("Size");
 
 	if (!pSizeNode)
 	{
@@ -131,7 +131,7 @@ bool CFileInfo::CheckSizeValid(std::string strFile, std::string strFileRelative)
 	return true;
 }
 
-bool CFileInfo::LoadFileInfo(std::string strFile)
+bool CFileInfo::LoadFileInfo(const std::string& strFile)
 {
 	boost::iostreams::mapped_file file(strFile, std::ios::in);
 
@@ -156,7 +156,7 @@ bool CFileInfo::LoadFileInfo(std::string strFile)
 	return GetPathOffsets();
 }
 
-bool CFileInfo::LoadFileInfo(char * pData, size_t iSize)
+bool CFileInfo::LoadFileInfo(const char * pData, size_t iSize)
 {
 	if (!m_XMLDocument.ReadXML(pData, iSize))
 	{
@@ -180,7 +180,7 @@ std::string & CFileInfo::GetLastErrorMessage()
 
 bool CFileInfo::GetPathOffsets()
 {
-	CXMLNode* pFilesNode = m_XMLDocument.Node()->GetNode("Files");
+	CPairNode* pFilesNode = m_XMLDocument.Node()->GetNode("Files");
 
 	if (!pFilesNode)
 	{
@@ -190,7 +190,7 @@ bool CFileInfo::GetPathOffsets()
 
 	for (size_t i = 0; i < pFilesNode->size(); ++i)
 	{
-		CXMLNode* pNameNode = (*pFilesNode)[i]->GetNode("Name");
+		CPairNode* pNameNode = (*pFilesNode)[i]->GetNode("Name");
 		
 		if (!pNameNode)
 		{
@@ -198,7 +198,7 @@ bool CFileInfo::GetPathOffsets()
 			return false;
 		}
 
-		CXMLNode* pSizeNode = (*pFilesNode)[i]->GetNode("Size");
+		CPairNode* pSizeNode = (*pFilesNode)[i]->GetNode("Size");
 
 		if (!pSizeNode)
 		{

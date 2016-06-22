@@ -1,5 +1,7 @@
 #include "patcher_service.h"
+
 #ifdef BOOST_PATCH_SERVICE
+
 void CPatchService::RunSingle()
 {
 	boost::system::error_code error;
@@ -87,7 +89,7 @@ size_t CPatchService::ThreadCount()
 	return m_Threads.size();
 }
 
-void CPatchService::SetupPatchThreads(size_t iCount)
+bool CPatchService::SetupPatchThreads(size_t iCount)
 {
 	if (!m_Threads.empty())
 	{
@@ -98,18 +100,17 @@ void CPatchService::SetupPatchThreads(size_t iCount)
 
 	for (size_t i = 0; i < iCount; ++i)
 	{
-		boost::thread *pThread;
-
 		try
 		{
-			pThread = new boost::thread(boost::bind(&CPatchService::RunSingle, this));
+			m_Threads.push_back(new boost::thread(boost::bind(&CPatchService::RunSingle, this)));
 		}
 		catch (...)
 		{
-			return;
+			return false;
 		}
-
-		m_Threads.push_back(pThread);
 	}
+
+	return true;
 }
+
 #endif

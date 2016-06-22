@@ -17,7 +17,7 @@ bool CManifest::LoadManifestFile(const char * pData, size_t iSize)
 	return true;
 }
 
-bool CManifest::LoadManifestFile(std::string strManifestFile)
+bool CManifest::LoadManifestFile(const std::string& strManifestFile)
 {
 	boost::iostreams::mapped_file file(strManifestFile, std::ios::in);
 
@@ -36,7 +36,7 @@ bool CManifest::LoadManifestFile(std::string strManifestFile)
 	return true;
 }
 
-bool CManifest::LoadManifestData(std::string strManifest)
+bool CManifest::LoadManifestData(const std::string& strManifest)
 {
 	if (!m_XMLDocument.ReadXML(strManifest.c_str(), strManifest.size()))
 	{
@@ -49,7 +49,7 @@ bool CManifest::LoadManifestData(std::string strManifest)
 
 int CManifest::GetLatestVersion()
 {
-	CXMLNode* pNode = m_XMLDocument.Node()->GetNode("RequiredRelease");
+	CPairNode* pNode = m_XMLDocument.Node()->GetNode("RequiredRelease");
 
 	if (!pNode)
 	{
@@ -59,9 +59,9 @@ int CManifest::GetLatestVersion()
 	return pNode->GetValue<int>();
 }
 
-int CManifest::GetReleaseByVersion(std::string version)
+int CManifest::GetReleaseByVersion(const std::string& version)
 {
-	CXMLNode* pReleaseNode = m_XMLDocument.Node()->GetNode("Releases");
+	CPairNode* pReleaseNode = m_XMLDocument.Node()->GetNode("Releases");
 
 	if (!pReleaseNode)
 	{
@@ -70,7 +70,7 @@ int CManifest::GetReleaseByVersion(std::string version)
 
 	for (auto it = pReleaseNode->begin(); it != pReleaseNode->end(); ++it)
 	{
-		CXMLNode* pNameNode = (*it)->GetNode("Name");
+		CPairNode* pNameNode = (*it)->GetNode("Name");
 
 		if (!pNameNode)
 		{
@@ -79,7 +79,7 @@ int CManifest::GetReleaseByVersion(std::string version)
 
 		if (version == pNameNode->GetValue<std::string>())
 		{
-			CXMLNode* pIdNode = (*it)->GetNode("Id");
+			CPairNode* pIdNode = (*it)->GetNode("Id");
 
 			if (!pIdNode)
 			{
@@ -95,21 +95,21 @@ int CManifest::GetReleaseByVersion(std::string version)
 
 std::string CManifest::GetLatestReleaseVersionString()
 {
-	CXMLNode* pReleaseNode = m_XMLDocument.Node()->GetNode("Releases");
+	CPairNode* pReleaseNode = m_XMLDocument.Node()->GetNode("Releases");
 
 	if (!pReleaseNode)
 	{
 		return "";
 	}
 
-	CXMLNode* pLatestReleaseNode = pReleaseNode->back();
+	CPairNode* pLatestReleaseNode = pReleaseNode->back();
 
 	if (!pLatestReleaseNode)
 	{
 		return "";
 	}
 
-	CXMLNode* pNameNode = pLatestReleaseNode->GetNode("Name");
+	CPairNode* pNameNode = pLatestReleaseNode->GetNode("Name");
 
 	if (!pNameNode)
 	{
@@ -121,7 +121,7 @@ std::string CManifest::GetLatestReleaseVersionString()
 
 bool CManifest::GetReleasesToDownloadFor(int iMyRelease, int iTargetRelease, std::vector<int>& v)
 {
-	CXMLNode* pReleaseUpdatePathesNode = m_XMLDocument.Node()->GetNode("ReleaseUpdatePaths");
+	CPairNode* pReleaseUpdatePathesNode = m_XMLDocument.Node()->GetNode("ReleaseUpdatePaths");
 
 	if (!pReleaseUpdatePathesNode)
 	{
@@ -135,9 +135,9 @@ bool CManifest::GetReleasesToDownloadFor(int iMyRelease, int iTargetRelease, std
 	{
 		int iReleaseNext = iLastRelease;
 
-		for (CXMLNode::iterator it = pReleaseUpdatePathesNode->begin(); it != pReleaseUpdatePathesNode->end(); ++it)
+		for (CPairNode::iterator it = pReleaseUpdatePathesNode->begin(); it != pReleaseUpdatePathesNode->end(); ++it)
 		{
-			CXMLNode* pFromNode = (*it)->GetNode("From");
+			CPairNode* pFromNode = (*it)->GetNode("From");
 
 			if (!pFromNode)
 			{
@@ -152,7 +152,7 @@ bool CManifest::GetReleasesToDownloadFor(int iMyRelease, int iTargetRelease, std
 				continue;
 			}
 
-			CXMLNode* pToNode = (*it)->GetNode("To");
+			CPairNode* pToNode = (*it)->GetNode("To");
 
 			if (!pToNode)
 			{
@@ -179,7 +179,7 @@ bool CManifest::GetReleasesToDownloadFor(int iMyRelease, int iTargetRelease, std
 
 bool CManifest::GetDownloadPathForRelease(int iMyRelease, int iTargetRelease, std::string & v)
 {
-	CXMLNode* pReleaseUpdatePathesNode = m_XMLDocument.Node()->GetNode("ReleaseUpdatePaths");
+	CPairNode* pReleaseUpdatePathesNode = m_XMLDocument.Node()->GetNode("ReleaseUpdatePaths");
 
 	if (!pReleaseUpdatePathesNode)
 	{
@@ -187,9 +187,9 @@ bool CManifest::GetDownloadPathForRelease(int iMyRelease, int iTargetRelease, st
 		return false;
 	}
 
-	for (CXMLNode::iterator it = pReleaseUpdatePathesNode->begin(); it != pReleaseUpdatePathesNode->end(); ++it)
+	for (CPairNode::iterator it = pReleaseUpdatePathesNode->begin(); it != pReleaseUpdatePathesNode->end(); ++it)
 	{
-		CXMLNode* pFromNode = (*it)->GetNode("From");
+		CPairNode* pFromNode = (*it)->GetNode("From");
 
 		if (!pFromNode)
 		{
@@ -204,7 +204,7 @@ bool CManifest::GetDownloadPathForRelease(int iMyRelease, int iTargetRelease, st
 			continue;
 		}
 
-		CXMLNode* pToNode = (*it)->GetNode("To");
+		CPairNode* pToNode = (*it)->GetNode("To");
 
 		if (!pToNode)
 		{
@@ -219,7 +219,7 @@ bool CManifest::GetDownloadPathForRelease(int iMyRelease, int iTargetRelease, st
 			continue;
 		}
 
-		CXMLNode* pExtraDataNode = (*it)->GetNode("ExtraData");
+		CPairNode* pExtraDataNode = (*it)->GetNode("ExtraData");
 
 		if (!pExtraDataNode)
 		{
@@ -233,7 +233,7 @@ bool CManifest::GetDownloadPathForRelease(int iMyRelease, int iTargetRelease, st
 			return false;
 		}
 
-		CXMLNode* pValueNode = (*pExtraDataNode->begin())->GetNode("Value");
+		CPairNode* pValueNode = (*pExtraDataNode->begin())->GetNode("Value");
 
 		if (!pValueNode)
 		{

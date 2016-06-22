@@ -1,27 +1,93 @@
 var logged_in = false;
+
+var custom_login_url = "https://account.tera.gameforge.com/launcher/1/";
+var enmasse_login_url = "https://account.enmasse.com/launcher/1/";
+var gameforge_login_url = "https://account.tera.gameforge.com/launcher/1/";
+
+var custom_server_list_url = "http://web-sls.tera.gameforge.com:4566/servers/list.en";
+var enmasse_server_list_url = "http://sls.service.enmasse.com:8080/servers/list.en";
+var gameforge_server_list_url = "http://web-sls.tera.gameforge.com:4566/servers/list.en";
+
+var login_url = gameforge_login_url;
+var login_authenticate = login_url + "authenticate";
+
+var server_list_url = custom_server_list_url;
+
 var is_patching = false;
 var patch_paused = false;
 var patchprogress = 0;
 var patchinterval;
 
 var cookies;
-var authenticateCookies;
+var authCookies;
+
+function ChangeServerList()
+{
+	var srv = document.getElementById("select_server_list").value;
+	
+	if(srv == "Custom")
+	{
+		Launcher.SLS_URL = prompt("Enter login url: ", Launcher.SLS_URL);
+	}
+	else if(srv == "Gameforge")
+	{
+		Launcher.SLS_URL = gameforge_server_list_url;
+	}
+	else if(srv == "Enmasse")
+	{
+		Launcher.SLS_URL = enmasse_server_list_url;
+	}
+	
+	server_list_url = Launcher.SLS_URL;
+}
+
+function ChangeServerLogin()
+{
+	var srv = document.getElementById("select_server_login").value;
+	
+	if(srv == "Custom")
+	{
+		login_url = prompt("Enter login url: ", login_url);
+	}
+	else if(srv == "Gameforge")
+	{
+		login_url = gameforge_login_url;
+	}
+	else if(srv == "Enmasse")
+	{
+		login_url = enmasse_login_url;
+	}
+
+	login_authenticate = login_url + "authenticate";
+}
+
+function GetGameDirectory()
+{
+	var result = GetTeraDirectory();
+
+	if(typeof result == "undefined")
+	{
+		return false;
+	}
+
+	document.getElementById("select_game_directory").value = result;
+
+	return false;
+}
 
 function GetAccountInfo()
 {
-	XSGetInfoGameforge();
+	XSGetInfo();
 }
 
-function XSGetInfoGameforge()
-{
-	authenticateCookies = authenticateResponse.GetCookies();
-					
+function XSGetInfo()
+{		
 	var getInfo = CreateXSRequest();
 					
 	getInfo.AddCookies(cookies);
-	getInfo.AddCookies(authenticateCookies);
+	getInfo.AddCookies(authCookies);
 	getInfo.SetMethod("GET");
-	getInfo.SetURL("https://account.tera.gameforge.com/launcher/1/account_server_info?attach_auth_ticket=1");
+	getInfo.SetURL(login_url + "account_server_info?attach_auth_ticket=1");
 					
 	var response = getInfo.GetResponse(
 		function(getInfoResponse)
@@ -43,7 +109,7 @@ function XSGetInfoGameforge()
 	return false;
 }
 
-function XSLoginGameforge()
+function XSLogin()
 {
 	OnLoginStart();
 	
@@ -51,7 +117,7 @@ function XSLoginGameforge()
 	var request = CreateXSRequest();
 	
 	request.SetMethod("GET");
-	request.SetURL("https://account.tera.gameforge.com/launcher/1/signin?lang=en&email=" + email + "&kid=");
+	request.SetURL(login_url + "signin?lang=en&email=" + email + "&kid=");
 	
 	var response = request.GetResponse(
 		function(resp)
@@ -61,23 +127,24 @@ function XSLoginGameforge()
 			
 			var email = document.getElementById("IDEmail").value;
 			var pw = document.getElementById("IDPassword").value;
-			
+			var date = Date();
+
 			authenticate.SetMethod("POST");
-			authenticate.SetURL("https://account.tera.gameforge.com/launcher/1/authenticate");
+			authenticate.SetURL(login_authenticate);
 			authenticate.AddCookies(cookies);
-			authenticate.SetPostData("uft8=%E2%9C%93&user[client_time]=Thu Mar 20 2016 15:00:00 GMT+0100 (Central Standard Time)&user[io_black_box]=TERA&game_id=1&user[email]=" + email + "&user[password]=" + pw);
+			authenticate.SetPostData("uft8=%E2%9C%93&user[client_time]=" + date + "&user[io_black_box]=TERA&game_id=1&user[email]=" + email + "&user[password]=" + pw + "&authenticity_token=oYk3wwe8oz+qzbVIYyutjeKz0ag6YsUjSpcZ02v9hw4=");
 			
 			var response = authenticate.GetResponse(
 				function(authenticateResponse)
 				{
-					authenticateCookies = authenticateResponse.GetCookies();
+					authCookies = authenticateResponse.GetCookies();
 					
 					var getInfo = CreateXSRequest();
 					
 					getInfo.AddCookies(cookies);
-					getInfo.AddCookies(authenticateCookies);
+					getInfo.AddCookies(authCookies);
 					getInfo.SetMethod("GET");
-					getInfo.SetURL("https://account.tera.gameforge.com/launcher/1/account_server_info?attach_auth_ticket=1");
+					getInfo.SetURL(login_url + "account_server_info?attach_auth_ticket=1");
 					
 					var response = getInfo.GetResponse(
 						function(getInfoResponse)
@@ -112,11 +179,6 @@ function XSLoginGameforge()
 		
 	return false;
 }
-
-$(function()
-{
-	setProgress(50)
-});
 
 function OnLoginStart()
 {
@@ -212,8 +274,6 @@ function LoginResult(result)
 
 	if(result == true)
 	{
-		logged_in = true;
-		
 		document.getElementById("button_main").innerHTML = "Start";
 		document.getElementById("button_main").setAttribute('onclick', 'return DoStart()');
 		
@@ -228,9 +288,10 @@ function LoginResult(result)
 	}
 	else
 	{
-		logged_in = false;
 		alert("Login failed.");
 	}
+	
+	logged_in = result;
 }
 
 $(function()

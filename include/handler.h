@@ -11,11 +11,6 @@
 class CCefURLRequestClient : public CefURLRequestClient
 {
 public:
-	~CCefURLRequestClient()
-	{
-
-	}
-
 	virtual void OnRequestComplete(CefRefPtr<CefURLRequest> request) OVERRIDE {}
 
 	virtual void OnUploadProgress(CefRefPtr<CefURLRequest> request,
@@ -157,10 +152,12 @@ extern cookie_container_t GetCookies(CefRefPtr<CefResponse> response);
 
 //////////////////////////////////////
 
+extern bool SetTeraDirectory(const std::string& path);
+
 extern bool GetAccountInfo();
 
 extern bool SetPatchProgress(double progress);
-extern bool SetPatchMessage(std::string msg);
+extern bool SetPatchMessage(const std::string& msg);
 extern bool FinishPatch();
 
 extern bool LoginResult(bool b);

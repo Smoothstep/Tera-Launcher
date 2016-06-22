@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "xml.h"
+#include "parser.h"
 
 class CManifest
 {
@@ -17,11 +17,11 @@ public:
 	std::string& LastError();
 
 	bool LoadManifestFile(const char* pData, size_t iSize);
-	bool LoadManifestFile(std::string strManifestFile);
-	bool LoadManifestData(std::string strManifest);
+	bool LoadManifestFile(const std::string& strManifestFile);
+	bool LoadManifestData(const std::string& strManifest);
 
 	int GetLatestVersion();
-	int GetReleaseByVersion(std::string version);
+	int GetReleaseByVersion(const std::string& version);
 
 	std::string GetLatestReleaseVersionString();
 

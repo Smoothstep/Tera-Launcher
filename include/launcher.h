@@ -5,6 +5,7 @@
 
 #include "cef.h"
 #include "patcher_callback.h"
+#include "parser.h"
 
 #define MESSAGE_BUF_SIZE	1024
 #define MESSAGE_TIMEOUT		5000
@@ -15,6 +16,13 @@
 
 #define DEFAULT_SLS_URL "http://web-sls.tera.gameforge.com:4566/servers/list.de"
 #define DEFAULT_TL_PATH "Client\\TL.exe"
+
+#define LAUNCHER_CONFIG_PATH "config\\launcher.ini"
+
+#define MAX_WND_NAME_LEN 128
+
+#define EME_WINDOW_TITLE "```````d```!````````"
+#define EME_WINDOW_CLASS_NAME "EME.LauncherWnd"
 
 static const std::string g_strGameEvents[] =
 {
@@ -31,6 +39,9 @@ static const std::string g_strGameEvents[] =
 	"gameEvent(1011)",	// Enter world
 	"gameEvent(1012)",	// World entered
 	"gameEvent(1013)",	// World logout
+	"gameEvent(1014)",	//
+	"gameEvent(1015)",	//
+	"gameEvent(1016)",	// Change channel
 	"endPopup(0)"		// End game
 };
 
@@ -46,7 +57,8 @@ enum EGameEvents
 	EVENT_CHAR_CREATED	= 1010,
 	EVENT_ENTER_WORLD	= 1011,
 	EVENT_WORLD_ENTERED = 1012,
-	EVENT_WORLD_LOGOUT	= 1013
+	EVENT_WORLD_LOGOUT	= 1013,
+	EVENT_CHANGE_CH		= 1016
 };
 
 class CPatcher;
@@ -54,10 +66,11 @@ class CPatcher;
 class CTLauncher
 {
 private:
-	wchar_t m_szTitle[100];
-	wchar_t m_szClass[100];
+	wchar_t m_szTitle[MAX_WND_NAME_LEN];
+	wchar_t m_szClass[MAX_WND_NAME_LEN];
 
 	std::string m_strTLPath;
+
 	std::string m_strResultMessage;
 	std::string m_strResultCode;
 	std::string m_strGameAccountName;
@@ -91,6 +104,8 @@ protected:
 	boost::thread *m_InteractThread;
 	boost::thread *m_MessageThread;
 
+	CInitializationDocument* m_Config;
+
 public:
 	enum EIdent
 	{
@@ -108,23 +123,27 @@ public:
 	CTLauncher();
 	~CTLauncher();
 
-	void OnLogin();
-	void OnLogout();
-	void OnEndPopup();
-
 	void RunMessageLoop();
 
-	bool SetAccountData(std::string strAccountData);
-	void SetServerList(std::string strServerList);
-	void SetLauncherPath(std::string strPath);
+	std::string& GetAccountData();
+	std::string& GetServerList();
+	std::string& GetLauncherPath();
+
+	bool IndicateTLPath(const std::string& strPath);
+	bool IndicateSLURL(const std::string& slsUrl);
+
+	bool SetAccountData(const std::string &strAccountData);
+	bool SetServerList(const std::string& strServerList);
+	void SetLauncherPath(const std::string& strPath);
 
 	bool Initialize(HINSTANCE hInstance);
 	bool Launch(HINSTANCE hInstance);
 
-	void Shutdown();
-	bool ReadConfiguration();
+	void OnEndPopup();
 
-	void SetStage(DWORD dwStage);
+	void Shutdown();
+
+	bool ReadConfiguration();
 
 	HWND HWNDGetLauncher();
 	HWND HWNDGetMain();
@@ -133,7 +152,8 @@ public:
 	DWORD GetTLProcessId();
 	DWORD GetStage();
 
-	static LRESULT CALLBACK ProcessClassMessages(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+	static LRESULT CALLBACK ProcessClassMessages(
+		HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 private:
 	ATOM ARegisterClass(HINSTANCE hInstance);
@@ -141,7 +161,7 @@ private:
 
 	bool LaunchTL();
 
-public:
+private:
 	void SendHello();
 	void SendCharCnt();
 	void SendLastServer();
@@ -155,11 +175,11 @@ class CLauncher : public CCefApp, public CTLauncher
 protected:
 	Callback::CPatchCallback m_PatchCallback;
 
-	uint64_t m_paCurrentSize	= 0;
-	uint64_t m_paRequiredSize	= 0;
+	uint64_t m_paCurrentSize;
+	uint64_t m_paRequiredSize;
 
-	size_t m_paRequiredUnpackedFileCount = 0;
-	size_t m_paCurrentUnpackedFileCount = 0;
+	size_t m_paRequiredUnpackedFileCount;
+	size_t m_paCurrentUnpackedFileCount;
 
 public:
 	CLauncher(HINSTANCE hInstance);
@@ -171,7 +191,7 @@ public:
 	bool PausePatch();
 	bool ResumePatch();
 	
-	bool RequestAccountInfo();
+	bool IndicateGameDirectory(const std::string& strDirectory);
 
 private:
 	CPatcher* m_pPatcher = NULL;
@@ -183,8 +203,6 @@ extern CLauncher * CreateLauncher();
 extern void RunLauncher();
 extern void CloseLauncher();
 
-extern bool ValidAccount(std::string strResult);
-
-extern void ConosleRecordMessages();
+extern bool ValidAccount(const std::string& strResult);
 
 #endif

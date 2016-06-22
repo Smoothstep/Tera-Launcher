@@ -69,25 +69,6 @@ namespace Extension
 		}
 	};
 
-	class RequestClient : public CCefURLRequestClient
-	{
-	public:
-		virtual void OnRequestComplete(CefRefPtr<CefURLRequest> request) OVERRIDE
-		{
-			auto cookies = GetCookies(request->GetResponse());
-
-			std::multimap<CefString, CefString> headers;
-			request->GetResponse()->GetHeaderMap(headers);
-
-			if (cookies.empty())
-			{
-
-			}
-
-			return;
-		}
-	};
-
 	class CXSHttpResponse : public CefBase
 	{
 		IMPLEMENT_REFCOUNTING(CXSHttpResponse);
@@ -250,6 +231,11 @@ namespace Extension
 					return;
 				}
 
+				if (!request->GetResponse())
+				{
+					return;
+				}
+
 				m_Response->GetCookieContainer() = GetCookies(request->GetResponse());
 
 				if (m_Response)
@@ -267,7 +253,8 @@ namespace Extension
 					return;
 				}
 
-				m_Response->GetDownloadData() = std::string(reinterpret_cast<const char*>(data),
+				m_Response->GetDownloadData() = std::string(
+					reinterpret_cast<const char*>(data),
 					reinterpret_cast<const char*>(data) + data_length);
 
 				if (m_Response)
@@ -375,14 +362,14 @@ namespace Extension
 
 			m_Request->SetUserData(this);
 
-			m_Request->SetValue("AddCookies",	CefV8Value::CreateFunction("AddCookies", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
-			m_Request->SetValue("AddHeaders",	CefV8Value::CreateFunction("AddHeaders", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
-			m_Request->SetValue("SetMethod",	CefV8Value::CreateFunction("SetMethod", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
-			m_Request->SetValue("SetURL",		CefV8Value::CreateFunction("SetURL", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
-			m_Request->SetValue("SetPostData",	CefV8Value::CreateFunction("SetPostData", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
-			m_Request->SetValue("SendRequest",	CefV8Value::CreateFunction("SendRequest", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
-			m_Request->SetValue("GetResponse",	CefV8Value::CreateFunction("GetResponse", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
-			m_Request->SetValue("Release",		CefV8Value::CreateFunction("Release", pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("AddCookies",	CefV8Value::CreateFunction("AddCookies",	pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("AddHeaders",	CefV8Value::CreateFunction("AddHeaders",	pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("SetMethod",	CefV8Value::CreateFunction("SetMethod",		pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("SetURL",		CefV8Value::CreateFunction("SetURL",		pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("SetPostData",	CefV8Value::CreateFunction("SetPostData",	pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("SendRequest",	CefV8Value::CreateFunction("SendRequest",	pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("GetResponse",	CefV8Value::CreateFunction("GetResponse",	pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+			m_Request->SetValue("Release",		CefV8Value::CreateFunction("Release",		pHandler), V8_PROPERTY_ATTRIBUTE_NONE);
 
 			return m_Request;
 		}
@@ -455,7 +442,8 @@ namespace Extension
 			m_Response = new CXSHttpResponse(m_Request, cbCookie, cbData);
 
 			CefRequestContextSettings settings;
-			CefRefPtr<CefURLRequest> urlRequest = CefURLRequest::Create(request, m_Response->GetRequestClient(),
+			CefRefPtr<CefURLRequest> urlRequest = 
+				CefURLRequest::Create(request, m_Response->GetRequestClient(),
 				CefRequestContext::CreateContext(settings, new CRequestContextHandler));
 
 			return m_Response;
@@ -472,7 +460,8 @@ namespace Extension
 				CefRefPtr<CefV8Value>& retval,
 				CefString& exception) OVERRIDE
 			{
-				CXSHttpRequest* pRequest = reinterpret_cast<CXSHttpRequest*>(object->GetUserData().get());
+				CXSHttpRequest* pRequest = 
+					reinterpret_cast<CXSHttpRequest*>(object->GetUserData().get());
 
 				if (!pRequest)
 				{
@@ -612,8 +601,11 @@ namespace Extension
 							downloadDataCB = CefV8Value::CreateUndefined();
 						}
 
-						TCallback cbCookie = TCallback(CefV8Context::GetCurrentContext(), cookieCB);
-						TCallback cbDownloadData = TCallback(CefV8Context::GetCurrentContext(), downloadDataCB);
+						TCallback cbCookie = 
+							TCallback(CefV8Context::GetCurrentContext(), cookieCB);
+
+						TCallback cbDownloadData = 
+							TCallback(CefV8Context::GetCurrentContext(), downloadDataCB);
 
 						response = pRequest->SendRequest(cbCookie, cbDownloadData);
 					}

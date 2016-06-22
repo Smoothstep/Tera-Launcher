@@ -1,33 +1,32 @@
 <html>
 <head>
+<link rel="stylesheet" href="css/select.css">
 <link rel="stylesheet" href="css/reset.css">
 <link rel="stylesheet" href="css/launcher.css">
 <link rel="stylesheet" href="css/spinner.css">
 <link rel="stylesheet" href="css/fx.css">
 <link rel="stylesheet" href="css/box.css">
 <link rel="stylesheet" href="css/progress.css">
-
 </head>
 <body>
-
-
 <div class="img"></div>
+
 <div class="container">
 	<div class="inner-container">
 		<div class="img blur">
 		</div>
-		<div id="one">
+		<div class="one">
 			<h1>Login</h1>
 			<form action="#">
-				 <a class="input-field half">
-					<label for="IDEmail">Email Address</label>
+				<a class="input-field half">
+					<label class="placeholder" for="IDEmail">Email Address</label>
 					<input id="IDEmail" type="email">
-				 </a>
+				</a>
 				  <a class="input-field half">
-					<label for="IDPassword">Password</label>
+					<label class="placeholder" for="IDPassword">Password</label>
 					<input id="IDPassword" type="password">
-				 </a>
-				 <button id="button_main" onclick="return XSLoginGameforge()">Login</button>
+				</a>
+				<button id="button_main" onclick="return XSLogin()">Login</button>
 			</form>
 		</div>
 		<div class="clear"></div>
@@ -36,10 +35,10 @@
 </div>
 
 <div class="container">
-<div class="inner-container" style="height: 200px">
+	<div class="inner-container" style="height: 200px">
 		<div class="img blur">
 		</div>
-		<div id="one">
+		<div class="one">
 			<h1>Patcher</h1>
 			<button id="button_patch" onclick="return DoPatch()">Patch</button>
 			<div id ="patch">
@@ -51,12 +50,41 @@
 				</div>
 				<textarea id="message" readonly>Loading...&#13;&#10;</textarea>
 			</div>
-			</form>
 		</div>
 	</div>
 </div>
 
 <div class="container">
+	<div class="inner-container" style="height: 250px; overflow-y: scroll">
+		<div class="img blur">
+		</div>
+		<div class="one">
+			<h1>Settings</h1>
+			
+			<p>Select server list:</p>
+			<div class="dropdown">
+				<select id="select_server_list" onchange="ChangeServerList()" class="dropdown-select">
+					<option>Gameforge</option>
+					<option>Custom</option>
+					<option>Enmasse</option>
+				</select>
+			</div>
+			</br>
+			<p>Select server login:</p>
+			<div class="dropdown">
+				<select id="select_server_login" onchange="ChangeServerLogin()" class="dropdown-select">
+					<option>Gameforge</option>
+					<option>Custom</option>
+					<option>Enmasse</option>
+				</select>
+			</div>
+			</br>
+			<p>Select TERA directory:</p>
+			<div class="dropdown">
+				<input type="button" value="Browse directory" onclick="return GetGameDirectory()" name="select_game_directory" id="select_game_directory" class="file-select" />
+			</div>
+		</div>
+	</div>
 </div>
 
 <div id='demo'>

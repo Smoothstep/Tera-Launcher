@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "xml.h"
+#include "parser.h"
 
 #include <map>
 
@@ -22,11 +22,11 @@ public:
 	CFileInfo();
 	~CFileInfo();
 
-	bool CheckSHA1Valid(std::string strFile, std::string strFileRelative);
-	bool CheckSizeValid(std::string strFile, std::string strFileRelative);
+	bool CheckSHA1Valid(const std::string &strFile, const std::string &strFileRelative);
+	bool CheckSizeValid(const std::string &strFile, const std::string &strFileRelative);
 
-	bool LoadFileInfo(std::string strFile);
-	bool LoadFileInfo(char* pData, size_t iSize);
+	bool LoadFileInfo(const std::string &strFile);
+	bool LoadFileInfo(const char* pData, size_t iSize);
 
 	std::string& GetLastErrorMessage();
 

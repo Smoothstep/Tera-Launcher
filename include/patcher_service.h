@@ -42,7 +42,7 @@ public:
 
 	size_t ThreadCount();
 
-	void SetupPatchThreads(size_t iCount);
+	bool SetupPatchThreads(size_t iCount);
 
 	template<typename T, typename... Args>
 	void Work(T& func, Args&&... args)
@@ -102,9 +102,9 @@ public:
 		PostTask(new Thread::CTask(new CFunction(f)));
 	}
 
-	void SetupPatchThreads(int iCount)
+	bool SetupPatchThreads(int iCount)
 	{
-		SetupThreads(iCount);
+		return SetupThreads(iCount);
 	}
 };
 #endif

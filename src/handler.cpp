@@ -7,7 +7,8 @@
 
 #include "launcher.h"
 
-std::string& TransformPath(std::string& string)
+// Needed for Execute JS
+std::string TransformPath(std::string string)
 {
 	size_t size = string.size();
 	size_t add = 0;
@@ -45,9 +46,12 @@ std::wstring GetCookies(cookie_container_t& vCookies)
 cookie_container_t GetCookies(CefRefPtr<CefResponse> response)
 {
 	cookie_container_t vCookies;
-
 	std::multimap<CefString, CefString> headers;
-	response->GetHeaderMap(headers);
+
+	if (response)
+	{
+		response->GetHeaderMap(headers);
+	}
 
 	for (auto it = headers.begin(); it != headers.end(); ++it)
 	{
@@ -140,17 +144,22 @@ CCefHandler * CCefHandler::GetInstance()
 	return g_MainHandler;
 }
 
+/*
+*	Executed by Browser Process
+*/
 bool CCefHandler::OnProcessMessageReceived(
 	CefRefPtr<CefBrowser> browser,
 	CefProcessId source_process,
 	CefRefPtr<CefProcessMessage> message)
 {
+	if (!GetLauncher())
+	{
+		return false;
+	}
+
 	if (message->GetName() == "Start")
 	{
-		if (GetLauncher())
-		{
-			return GetLauncher()->Launch(GetModuleHandle(NULL));
-		}
+		return GetLauncher()->Launch(GetModuleHandle(NULL));
 	}
 	else if (message->GetName() == "Account")
 	{
@@ -159,17 +168,11 @@ bool CCefHandler::OnProcessMessageReceived(
 			return false;
 		}
 
-		if (GetLauncher())
-		{
-			return GetLauncher()->SetAccountData(message->GetArgumentList()->GetString(0).ToString());
-		}
+		return GetLauncher()->SetAccountData(message->GetArgumentList()->GetString(0).ToString());
 	}
 	else if (message->GetName() == "Patch")
 	{
-		if (GetLauncher())
-		{
-			return GetLauncher()->Patch();
-		}
+		return GetLauncher()->Patch();
 	}
 	else if (message->GetName() == "PatchMessage")
 	{
@@ -205,6 +208,28 @@ bool CCefHandler::OnProcessMessageReceived(
 	else if (message->GetName() == "Logout")
 	{
 		return Logout();
+	}
+	else if (message->GetName() == "SetSLURL")
+	{
+		if (message->GetArgumentList()->GetSize() == 0)
+		{
+			return false;
+		}
+
+		return GetLauncher()->IndicateSLURL(message->GetArgumentList()->GetString(0));
+	}
+	else if (message->GetName() == "SetTLPath")
+	{
+		if (message->GetArgumentList()->GetSize() == 0)
+		{
+			return false;
+		}
+
+		return GetLauncher()->IndicateTLPath(message->GetArgumentList()->GetString(0));
+	}
+	else if (message->GetName() == "UpdateConfig")
+	{
+		return GetLauncher()->ReadConfiguration();
 	}
 
 	return false;
@@ -288,30 +313,6 @@ void CCefHandler::Close()
 //								JS call up functions
 ////////////////////////////////////////////////////////////////////////////////////////////
 
-bool GetAccountInfo()
-{
-	if (!CEF)
-	{
-		return false;
-	}
-
-	if (!CEF->Browser())
-	{
-		return false;
-	}
-
-	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
-
-	if (!frame)
-	{
-		return false;
-	}
-
-	frame->ExecuteJavaScript("GetAccountInfo();", frame->GetURL(), 0);
-
-	return true;
-}
-
 bool SetPatchProgress(double progress)
 {
 	if (!CEF)
@@ -336,7 +337,7 @@ bool SetPatchProgress(double progress)
 	return true;
 }
 
-bool SetPatchMessage(std::string msg)
+bool SetPatchMessage(const std::string& msg)
 {
 	if (!CEF)
 	{
@@ -380,6 +381,54 @@ bool FinishPatch()
 	}
 
 	frame->ExecuteJavaScript("FinishPatch();", frame->GetURL(), 0);
+
+	return true;
+}
+
+bool SetTeraDirectory(const std::string& path)
+{
+	if (!CEF)
+	{
+		return false;
+	}
+
+	if (!CEF->Browser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	frame->ExecuteJavaScript("SetGameDirectory(" + path + ");", frame->GetURL(), 0);
+
+	return true;
+}
+
+bool GetAccountInfo()
+{
+	if (!CEF)
+	{
+		return false;
+	}
+
+	if (!CEF->Browser())
+	{
+		return false;
+	}
+
+	CefRefPtr<CefFrame> frame = CEF->Browser()->GetMainFrame();
+
+	if (!frame)
+	{
+		return false;
+	}
+
+	frame->ExecuteJavaScript("GetAccountInfo();", frame->GetURL(), 0);
 
 	return true;
 }

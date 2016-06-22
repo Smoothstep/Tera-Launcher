@@ -11,6 +11,7 @@
 #include <set>
 
 #define NUM_DEFAULT_PATCH_THREADS 4
+#define PATCHER_CONFIG_PATH "config\\patcher.ini"
 
 static const std::string g_strDownloadHost		= "dl.tera.gameforge.com";
 static const std::string g_strDownloadClient	= "dl.tera.gameforge.com/tera/client/pgc_v2/";
@@ -22,6 +23,9 @@ class CArchiveDirectoryFile;
 
 class CPatcher
 {
+protected:
+	CInitializationDocument *m_Config;
+
 private:
 	int32_t m_iMyVersion;
 
@@ -55,6 +59,8 @@ public:
 	CPatcher(Callback::CPatchCallback& callback);
 	~CPatcher();
 
+	bool SetupPath(const std::string& strDirectory);
+
 	bool Initialize();
 
 	bool UpdateToLatest();
@@ -65,25 +71,42 @@ public:
 
 	void MakeLog();
 
-	bool UnpackArchive(std::string file, std::set<size_t>& sUnpackedOffsets, CArchive& archive, CArchiveFile* pFilePart);
+	bool UnpackArchive(
+		const std::string& file, 
+		std::set<size_t>& sUnpackedOffsets, 
+		CArchive& archive, 
+		CArchiveFile* pFilePart);
 
 	int UnpackArchiveFiles(std::vector<CArchiveFile*>& files);
 
-	bool MTUnpackSingleArchiveFile(CArchiveFile* pArchive, boost::atomic_int32_t& result);
-	bool MTUnpackArchiveFiles(boost::iterator_range<std::vector<CArchiveFile*>::iterator> archive, boost::atomic_int32_t& result);
+	bool MTUnpackSingleArchiveFile(
+		CArchiveFile* pArchive, 
+		boost::atomic_int32_t& result);
+
+	bool MTUnpackArchiveFiles(
+		boost::iterator_range<std::vector<CArchiveFile*>::iterator> archive, 
+		boost::atomic_int32_t& result);
 
 private:
-	bool FetchFileInfo(std::string file, CArchiveDirectoryFile* pInfoFileDirectory);
+	bool FetchFileInfo(
+		const std::string& file, 
+		CArchiveDirectoryFile* pInfoFileDirectory);
 
-	int HTTPDownloadFile(std::string link, std::string filename, bool bCheckCompleted, bool bFlush);
+	int HTTPDownloadFile(
+		const std::string& link, 
+		const std::string& filename, 
+		bool bCheckCompleted, 
+		bool bFlush);
 
 	bool HTTPValid(boost::asio::streambuf& response);
-	bool HTTPDownloadManifest(std::string link);
+	bool HTTPDownloadManifest(const std::string link);
 
 	bool ReadConfiguration();
 	bool GetCurrentVersion();
 
-	inline int Patch(std::vector<CArchiveFile*>& files, CArchiveFile** m_ppPatchFile);
+	inline int Patch(
+		std::vector<CArchiveFile*>& files, 
+		CArchiveFile** m_ppPatchFile);
 
 	inline std::string TmpPath(std::string s)
 	{

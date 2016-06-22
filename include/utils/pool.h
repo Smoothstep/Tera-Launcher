@@ -273,8 +273,15 @@ namespace Thread
 
 			for (int i = 0; i < iCount; ++i)
 			{
-				m_vThreads.push_back(new boost::thread(
-					boost::bind(&CThreadPool::ThreadMain, this)));
+				try
+				{
+					m_vThreads.push_back(new boost::thread(
+						boost::bind(&CThreadPool::ThreadMain, this)));
+				}
+				catch (...)
+				{
+					return false;
+				}
 			}
 
 			return true;

@@ -63,13 +63,8 @@ private:
 	libtorrent::error_code m_ErrorCode;
 
 public:
-	CTorrentData()
-	{
-	}
-
-	~CTorrentData()
-	{
-	}
+	CTorrentData() {}
+	~CTorrentData() {}
 
 	TFiles const& GetFileStorage()
 	{
